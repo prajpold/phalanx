@@ -14,6 +14,8 @@ done
 PHALANX_ROOT="$(cd "$(dirname "$self")/.." && pwd)"
 export PHALANX_ROOT
 
+PHALANX_VERSION=0.1.0
+
 . "$PHALANX_ROOT/lib/git.sh"
 . "$PHALANX_ROOT/lib/agents.sh"
 . "$PHALANX_ROOT/lib/session.sh"
@@ -30,6 +32,7 @@ phalanx — tmux session manager for coding agents
   phalanx push <branch>       push HEAD to a branch without checking it out
   phalanx envs                env branches configured for this repo
   phalanx ls                  dashboard rows as TSV
+  phalanx --version           print the version
 
 env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos)
 EOF
@@ -52,6 +55,7 @@ case "$command" in
   push)            phalanx_push "$@" ;;
   envs)            phalanx_envs "$@" ;;
   ls)              phalanx_rows ;;
+  -v|--version)    printf '%s\n' "$PHALANX_VERSION" ;;
   -h|--help|help)  usage ;;
   *)               usage >&2; exit 1 ;;
 esac

@@ -60,6 +60,7 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx push <branch>` | push HEAD to a branch without checking it out |
 | `phalanx envs` | env branches configured for this repo |
 | `phalanx ls` | dashboard rows as TSV, for scripting |
+| `phalanx --version` | print the version |
 
 Nothing needs setting up per repo to get going: `cd` into one and run
 `phalanx new .` for a session on the current checkout, or `phalanx work <branch>`
@@ -69,6 +70,9 @@ to guess which branches an environment deploys from.
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 `ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
 kills a session, `ctrl-r` reloads.
+
+The name and version sit on the popup's own border, which sizes itself, so the
+list keeps the column names directly above it and the keys along the bottom.
 
 A cyan bar in the left gutter marks what phalanx manages. It comes from the
 `@phalanx-role` option on the session, which only phalanx sets, so anything that

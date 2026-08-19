@@ -75,7 +75,6 @@ phalanx_pick() {
       --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
       --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim,footer:dim,footer-border:dim,border:dim,spinner:cyan' \
       --header='   state       age  repo                 branch                 category    agent' \
-      --header-first \
       --footer='enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
       --footer-border=line \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \

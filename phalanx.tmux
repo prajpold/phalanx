@@ -10,6 +10,7 @@ option() {
 SHELL_NAME="$(option @phalanx-shell bash)"
 WIDTH="$(option @phalanx-width 90%)"
 HEIGHT="$(option @phalanx-height 80%)"
+TITLE="#[align=centre,fg=cyan,bold] phalanx $("$PHALANX_DIR/bin/phalanx" --version) "
 
 bind_popup() {
   local key="$1" command="$2"
@@ -18,7 +19,7 @@ bind_popup() {
   # disappears with the popup. -d runs it where the current pane is, which is how
   # the branch commands find the repo to act on.
   tmux bind-key "$key" display-popup -EE -d '#{pane_current_path}' \
-    -w "$WIDTH" -h "$HEIGHT" \
+    -w "$WIDTH" -h "$HEIGHT" -b rounded -S 'fg=colour8' -T "$TITLE" \
     "$SHELL_NAME -lc '$PHALANX_DIR/bin/phalanx $command'"
 }
 
