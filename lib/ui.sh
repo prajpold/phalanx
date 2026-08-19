@@ -9,10 +9,10 @@ phalanx_require_tty() {
 }
 
 _phalanx_fzf_pick() {
-  local prompt="$1" header="$2" out query selection
+  local prompt="$1" hint="$2" out query selection
   out="$(fzf --print-query --layout=reverse --no-scrollbar --pointer='▌' \
-             --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim' \
-             --prompt="$prompt" --header="$header")" || true
+             --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,footer:dim,footer-border:dim' \
+             --prompt="$prompt" --footer="$hint" --footer-border=line)" || true
   query="$(printf '%s\n' "$out" | sed -n 1p)"
   selection="$(printf '%s\n' "$out" | sed -n 2p)"
   printf '%s\n' "${selection:-$query}"
@@ -73,11 +73,11 @@ phalanx_pick() {
   out="$(
     printf '%s\n' "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=5 \
       --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
-      --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim,border:dim,spinner:cyan' \
-      --header="$(printf '%s\n%s' \
-        'enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
-        '   state       age  repo                 branch                 category    agent')" \
+      --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim,footer:dim,footer-border:dim,border:dim,spinner:cyan' \
+      --header='   state       age  repo                 branch                 category    agent' \
       --header-first \
+      --footer='enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
+      --footer-border=line \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
       --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls)"
   )" || return 0
