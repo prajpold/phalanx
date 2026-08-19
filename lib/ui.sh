@@ -1,9 +1,3 @@
-_phalanx_preview_hidden() {
-  case "$(tmux show-option -gqv @phalanx-preview)" in
-    off|hidden|0) printf ',hidden\n' ;;
-  esac
-}
-
 # Checked once, from the dispatcher, where the descriptors are still the ones
 # the terminal handed us. Inside the pickers every one of them may be a pipe.
 phalanx_require_tty() {
@@ -16,7 +10,9 @@ phalanx_require_tty() {
 
 _phalanx_fzf_pick() {
   local prompt="$1" header="$2" out query selection
-  out="$(fzf --print-query --prompt="$prompt" --header="$header")" || true
+  out="$(fzf --print-query --layout=reverse --no-scrollbar --pointer='▌' \
+             --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim' \
+             --prompt="$prompt" --header="$header")" || true
   query="$(printf '%s\n' "$out" | sed -n 1p)"
   selection="$(printf '%s\n' "$out" | sed -n 2p)"
   printf '%s\n' "${selection:-$query}"
@@ -76,12 +72,13 @@ phalanx_pick() {
 
   out="$(
     printf '%s\n' "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=5 \
-      --header="$(printf 'enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload\nstate      age  repo               branch                   category    agent')" \
+      --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
+      --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim,border:dim,spinner:cyan' \
+      --header="$(printf '%s\n%s' \
+        'enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
+        '   state       age  repo                 branch                 category    agent')" \
       --header-first \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
-      --preview='tmux capture-pane -p -t {1} 2>/dev/null | tail -40' \
-      --preview-window="right,45%,border-left$(_phalanx_preview_hidden)" \
-      --bind='ctrl-/:toggle-preview' \
       --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls)"
   )" || return 0
 

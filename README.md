@@ -68,8 +68,17 @@ to guess which branches an environment deploys from.
 
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 `ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
-kills a session, `ctrl-r` reloads, `ctrl-/` toggles the preview of the selected
-pane. Start with the preview hidden by setting `@phalanx-preview off`.
+kills a session, `ctrl-r` reloads.
+
+A cyan bar in the left gutter marks what phalanx manages. It comes from the
+`@phalanx-role` option on the session, which only phalanx sets, so anything that
+grew on its own — a hand-rolled tmux session, an agent started outside phalanx —
+has no bar and reads `external`, `background` or `detached` in the category
+column.
+
+Age is time since the agent's last turn, from the transcript mtime. An agent that
+has not taken a turn yet has no transcript, so it falls back to how long ago it
+started.
 
 Rows are ordered in two blocks. Agents come first, with state, how long since
 the last turn, repo, branch, category and the agent's name. Plain tmux sessions

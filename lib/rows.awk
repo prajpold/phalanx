@@ -1,18 +1,30 @@
-function icon(s) {
-  if (s == "busy" || s == "running") return "●"
-  if (s == "idle") return "○"
-  if (s == "blocked" || s == "waiting") return "◆"
-  if (s == "error") return "✗"
-  if (s == "ops") return "⚙"
+function paint(text, code) {
+  return "\033[" code "m" text "\033[0m"
+}
+
+function icon(status) {
+  if (status == "busy" || status == "running") return "●"
+  if (status == "idle") return "○"
+  if (status == "blocked" || status == "waiting") return "◆"
+  if (status == "error") return "✗"
+  if (status == "ops") return "⚙"
   return "▪"
 }
 
-function color(s) {
-  if (s == "busy" || s == "running") return "\033[32m"
-  if (s == "blocked" || s == "waiting") return "\033[33m"
-  if (s == "error") return "\033[31m"
-  if (s == "ops") return "\033[35m"
-  return "\033[2m"
+function status_color(status) {
+  if (status == "busy" || status == "running") return "32"
+  if (status == "blocked" || status == "waiting") return "33"
+  if (status == "error") return "31"
+  if (status == "ops") return "36"
+  return "2"
+}
+
+function category(kind, role, target) {
+  if (kind == "background") return "background"
+  if (target == "") return "detached"
+  if (role == "ops") return "ops"
+  if (role == "") return "external"
+  return "phalanx"
 }
 
 function ago(ts,   d) {
@@ -25,39 +37,48 @@ function ago(ts,   d) {
   return int(d / 86400) "d"
 }
 
+function fit(s, w) {
+  if (length(s) <= w) return sprintf("%-" w "s", s)
+  return substr(s, 1, w - 1) "…"
+}
+
 function basename(p,   n, a) {
   n = split(p, a, "/")
   return n ? a[n] : p
 }
 
-function category(kind, role, target) {
-  if (kind == "background") return "background"
-  if (target == "") return "detached"
-  if (role == "ops") return "ops"
-  return "session"
-}
-
-function emit(target, sid, cwd, kind, status, repo, br, role, agent,   st, cat, disp, group) {
+function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
+              cat, group, gutter, state, age, disp) {
   if (repo == "") repo = basename(cwd)
   if (br == "" && cwd in gitbranch) br = gitbranch[cwd]
   if (br == "") br = "-"
+
   cat = category(kind, role, target)
   group = (sid == "") ? 2 : 1
+  gutter = (role == "") ? "  " : paint("▌", "36") " "
 
   if (group == 1) {
-    st = color(status) sprintf("%s %-8s", icon(status), status) "\033[0m"
-    disp = sprintf("%s %4s  %-18s %-24s %-11s %s", st, ago(mtime[sid]), repo, br, cat, agent)
+    state = paint(sprintf("%s %-8s", icon(status), status), status_color(status))
   } else {
-    st = color(status) icon(status) "\033[0m"
-    disp = sprintf("%s  %-18s %-24s %s", st, repo, br, cat)
+    state = paint(sprintf("%s %-8s", icon(status), ""), status_color(status))
   }
 
-  if (target == "") disp = "\033[2m" disp "\033[0m"
+  age = ago(mtime[sid])
+  # No transcript yet means no turn yet, so fall back to when the agent started.
+  if (age == "-" && started != "") age = ago(int(started / 1000))
+
+  disp = sprintf("%s%s %4s  %s %s %s %s",
+                 gutter, state, age,
+                 paint(fit(repo, 20), "1"),
+                 paint(fit(br, 22), "36"),
+                 paint(sprintf("%-11s", cat), "2"),
+                 paint(agent, "2"))
+
   print target, sid, cwd, kind, disp, repo, group
 }
 
-$1 == "PANE"  { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; next }
-$1 == "PS"    { ttyof[$2] = $3; next }
+$1 == "PANE"   { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; next }
+$1 == "PS"     { ttyof[$2] = $3; next }
 $1 == "MTIME"  { mtime[$2] = $3; next }
 $1 == "BRANCH" { gitbranch[$2] = $3; next }
 
@@ -75,6 +96,7 @@ $1 == "AGENT" {
   agents++
   akind[agents] = $2; apid[agents] = $3; asid[agents] = $4
   astatus[agents] = $5; aname[agents] = $6; acwd[agents] = $7
+  astarted[agents] = $8
   next
 }
 
@@ -87,13 +109,15 @@ END {
     sub(/:.*/, "", session)
     if (session != "") attached[session] = 1
 
-    emit(target, asid[i], acwd[i], akind[i], astatus[i], repo[session], branch[session], role[session], aname[i])
+    emit(target, asid[i], acwd[i], akind[i], astatus[i],
+         repo[session], branch[session], role[session], aname[i], astarted[i])
   }
 
   for (i = 1; i <= sessions; i++) {
     name = order[i]
     if (name in attached) continue
     status = (role[name] == "") ? "shell" : role[name]
-    emit(name ":", "", path[name], status, status, repo[name], branch[name], role[name], "")
+    emit(name ":", "", path[name], status, status,
+         repo[name], branch[name], role[name], "", "")
   }
 }

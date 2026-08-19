@@ -11,22 +11,31 @@ _phalanx_agents_tsv() {
        (.sessionId // ""),
        (.status // .state // "unknown"),
        (.name // ""),
-       (.cwd // "")]
+       (.cwd // ""),
+       (.startedAt // "")]
     | @tsv' 2>/dev/null
 }
 
 # Transcript mtime is the only available proxy for last activity; startedAt in
 # `claude agents --json` is the session start, not the last turn.
+# Pre-split with awk: read collapses runs of tabs because tab is IFS whitespace,
+# and background agents carry no pid, so the empty field would shift the rest.
 _phalanx_mtimes() {
   local sid cwd slug file
-  while IFS=$'\t' read -r _ _ _ sid _ _ cwd; do
+  awk -F'\t' '$4 != "" { print $4 "\t" $7 }' \
+  | while IFS=$'\t' read -r sid cwd; do
     [ -n "$sid" ] || continue
     slug="$(printf '%s' "$cwd" | tr '/.' '-')"
     file="$HOME/.claude/projects/$slug/$sid.jsonl"
     if [ ! -f "$file" ]; then
-      file="$(ls -1 "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)"
+      file=""
+      for candidate in "$HOME"/.claude/projects/*/"$sid".jsonl; do
+        [ -f "$candidate" ] || continue
+        file="$candidate"
+        break
+      done
     fi
-    [ -n "$file" ] && [ -f "$file" ] || continue
+    [ -n "$file" ] || continue
     printf 'MTIME\t%s\t%s\n' "$sid" "$(_phalanx_mtime "$file")"
   done
 }
