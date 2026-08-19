@@ -164,7 +164,7 @@ phalanx_pick() {
         return "$status"
         ;;
       ctrl-x)
-        _phalanx_kill "$target" "$kind" "$pid"
+        _phalanx_kill "$target" "$kind" "$pid" "$cwd"
         continue
         ;;
     esac
@@ -181,9 +181,29 @@ phalanx_pick() {
 }
 
 _phalanx_kill() {
-  local target="$1" kind="$2" pid="$3" session="${1%%:*}" reply
+  local target="$1" kind="$2" pid="$3" cwd="$4" session="${1%%:*}" reply root branch
 
   if [ -n "$target" ]; then
+    # The worktree is only phalanx's to remove if phalanx made it.
+    case "$cwd" in
+      "$PHALANX_HOME"/*)
+        root="$(_phalanx_repo_root "$cwd" 2>/dev/null)"
+        branch="$(git -C "$cwd" branch --show-current 2>/dev/null)"
+        if [ -n "$root" ] && [ -n "$branch" ]; then
+          printf '%s: [s]ession only, session and [w]orktree, [a]rchive then remove? [s/w/a/N] ' \
+            "$session" >&2
+          read -r reply
+          case "$reply" in
+            s|S) tmux kill-session -t "=$session" ;;
+            w|W) phalanx_rm "$branch" "$root" ;;
+            a|A) phalanx_archive "$branch" "$root" ;;
+            *)   printf 'aborted\n' >&2 ;;
+          esac
+          return 0
+        fi
+        ;;
+    esac
+
     printf 'kill tmux session %s? [y/N] ' "$session" >&2
     read -r reply
     case "$reply" in

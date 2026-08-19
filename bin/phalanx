@@ -19,6 +19,7 @@ PHALANX_VERSION=0.1.0
 . "$PHALANX_ROOT/lib/git.sh"
 . "$PHALANX_ROOT/lib/agents.sh"
 . "$PHALANX_ROOT/lib/session.sh"
+. "$PHALANX_ROOT/lib/cleanup.sh"
 . "$PHALANX_ROOT/lib/ui.sh"
 
 usage() {
@@ -31,6 +32,11 @@ phalanx — tmux session manager for coding agents
                               worktree + session for a branch
   phalanx bare <branch>       same, with a layout that runs no agent, for
                               whatever you would rather do on the branch yourself
+  phalanx rm <branch>         drop the session and its worktree, keeping the branch
+  phalanx archive <branch>    stash what is uncommitted, then drop it the same way
+  phalanx archived            what has been archived in this repo
+  phalanx restore <branch>    bring back a worktree, and its stash if there is one
+  phalanx prune               drop worktrees of branches already merged
   phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
 
@@ -61,6 +67,11 @@ case "$command" in
                    else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
   bare)            if [ $# -gt 0 ]; then phalanx_bare "$1" "$PWD"
                    else phalanx_require_tty || exit 1; phalanx_bare_interactive; fi ;;
+  rm)              phalanx_rm "$@" ;;
+  archive)         phalanx_archive "$@" ;;
+  archived)        phalanx_archived ;;
+  restore)         phalanx_restore "$@" ;;
+  prune)           phalanx_prune ;;
   ls)              if [ -n "$PHALANX_TSV" ]; then phalanx_rows; else phalanx_list; fi ;;
   -v|--version)    printf '%s\n' "$PHALANX_VERSION" ;;
   -h|--help|help)  usage ;;

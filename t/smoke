@@ -27,6 +27,7 @@ check 'parses: lib/rows.awk' awk -f "$PHALANX_ROOT/lib/rows.awk" /dev/null
 . "$PHALANX_ROOT/lib/git.sh"
 . "$PHALANX_ROOT/lib/agents.sh"
 . "$PHALANX_ROOT/lib/session.sh"
+. "$PHALANX_ROOT/lib/cleanup.sh"
 . "$PHALANX_ROOT/lib/ui.sh"
 
 for name in $(grep -o '\b_\{0,1\}phalanx_[a-z_]*' "$PHALANX_ROOT/bin/phalanx" | sort -u); do
@@ -37,6 +38,9 @@ for layout in "$PHALANX_ROOT"/layouts/*; do
   check "layout is non-empty: ${layout#$PHALANX_ROOT/}" test -s "$layout"
 done
 check 'the default layout runs an agent' _phalanx_layout_has_agent "$PHALANX_ROOT/layouts/default"
+
+check 'removal never forces' test -z "$(grep -rn 'worktree remove.*--force' "$PHALANX_ROOT/lib")"
+check 'removal never deletes a branch' test -z "$(grep -rn 'branch -[dD]' "$PHALANX_ROOT/lib")"
 
 check 'version' "$PHALANX_ROOT/bin/phalanx" --version
 check 'help' "$PHALANX_ROOT/bin/phalanx" --help

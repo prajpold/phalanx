@@ -57,6 +57,11 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx new [path] [layout]` | session for a directory |
 | `phalanx work <branch> [layout]` | worktree + session for a branch |
 | `phalanx bare <branch>` | the same with a layout that runs no agent |
+| `phalanx rm <branch>` | drop the session and its worktree, keeping the branch |
+| `phalanx archive <branch>` | stash what is uncommitted, then drop it the same way |
+| `phalanx archived` | what has been archived in this repo |
+| `phalanx restore <branch>` | bring back a worktree, and its stash if there is one |
+| `phalanx prune` | drop worktrees of branches already merged |
 | `phalanx ls [-c]` | list sessions, `--tsv` for the machine-readable form |
 | `phalanx --version` | print the version |
 
@@ -139,6 +144,26 @@ asked for is checked out in the main worktree, and refuses to build a second
 worktree for the default branch when the main one has drifted off it. In both
 cases it prints the `git switch` that puts things right and changes nothing
 itself.
+
+### Getting rid of one
+
+A worktree per branch means worktrees accumulate, so `rm` takes the session and
+the worktree together and leaves the branch alone. What that costs you is nothing
+you cannot get back: commits live in the branch ref whether or not they were ever
+pushed, and git refuses outright to remove a worktree holding modified or
+untracked files — which covers the `.env` this tool linked in itself. phalanx
+never passes `--force` and never deletes a branch, so the refusal stands.
+
+When that refusal is in your way, `archive` stashes the working tree, untracked
+files included, and then removes it. The stash is tagged with the branch, which is
+all the record there is: `archived` reads it back out of `git stash list` and
+`restore` recreates the worktree and pops it. There is no second store to drift
+out of step with the repository.
+
+`prune` offers up the worktrees of branches already merged into the default one,
+and only ever its own, under `$PHALANX_HOME` — a worktree you added by hand is not
+phalanx's to remove. `ctrl-x` in the dashboard asks the same question: the session
+alone, the worktree too, or archive it first.
 
 ### Sessions with no agent
 
