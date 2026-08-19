@@ -25,8 +25,19 @@ Clone anywhere, then add to `~/.config/tmux/tmux.conf`:
 run-shell /path/to/phalanx/phalanx.tmux
 ```
 
-`prefix + g` opens the dashboard in a popup. Rebind with
-`set -g @phalanx-key G`.
+| bind | opens |
+| --- | --- |
+| `prefix + g` | agent dashboard |
+| `prefix + b` | work session on a branch |
+| `prefix + e` | ops session on an environment branch |
+
+The popup inherits the current pane's directory, which is how `b` and `e` find
+the repo to act on. Rebind with `@phalanx-key`, `@phalanx-work-key` and
+`@phalanx-ops-key`, or set one to `none` to skip it; `@phalanx-width` and
+`@phalanx-height` size the popup.
+
+These three avoid every default tmux binding and leave `h`/`j`/`k`/`l` free for
+vim-style pane navigation.
 
 Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 

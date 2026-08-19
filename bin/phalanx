@@ -35,8 +35,8 @@ command="${1:-pick}"
 case "$command" in
   pick)            phalanx_pick "$@" ;;
   new)             phalanx_new "$@" ;;
-  work)            phalanx_work "$@" ;;
-  ops)             phalanx_ops "$@" ;;
+  work)            if [ $# -gt 0 ]; then phalanx_work "$@"; else phalanx_work_interactive; fi ;;
+  ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"; else phalanx_ops_interactive; fi ;;
   push)            phalanx_push "$@" ;;
   envs)            phalanx_envs "$@" ;;
   ls)              phalanx_rows ;;

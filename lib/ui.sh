@@ -1,5 +1,12 @@
+_phalanx_require_tty() {
+  [ -t 1 ] && return 0
+  printf 'phalanx: needs an interactive terminal\n' >&2
+  return 1
+}
+
 _phalanx_fzf_pick() {
   local prompt="$1" header="$2" out query selection
+  _phalanx_require_tty || return 1
   out="$(fzf --print-query --prompt="$prompt" --header="$header")" || true
   query="$(printf '%s\n' "$out" | sed -n 1p)"
   selection="$(printf '%s\n' "$out" | sed -n 2p)"
@@ -45,6 +52,7 @@ _phalanx_branch_interactive() {
 
 phalanx_pick() {
   local rows out key line target kind cwd root
+  _phalanx_require_tty || return 1
 
   rows="$(phalanx_rows)"
   if [ -z "$(printf '%s' "$rows" | tr -d '[:space:]')" ]; then
@@ -105,4 +113,22 @@ _phalanx_kill() {
     y|Y) tmux kill-session -t "=$session" ;;
     *)   printf 'aborted\n' ;;
   esac
+}
+
+phalanx_work_interactive() {
+  local root
+  root="$(_phalanx_repo_root "${1:-$PWD}")" || {
+    printf 'phalanx: not a git repository\n' >&2
+    return 1
+  }
+  _phalanx_branch_interactive "$root" work
+}
+
+phalanx_ops_interactive() {
+  local root
+  root="$(_phalanx_repo_root "${1:-$PWD}")" || {
+    printf 'phalanx: not a git repository\n' >&2
+    return 1
+  }
+  _phalanx_branch_interactive "$root" ops
 }
