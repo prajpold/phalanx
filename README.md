@@ -34,7 +34,9 @@ run-shell /path/to/phalanx/phalanx.tmux
 The popup inherits the current pane's directory, which is how `b` and `e` find
 the repo to act on. Rebind with `@phalanx-key`, `@phalanx-work-key` and
 `@phalanx-ops-key`, or set one to `none` to skip it; `@phalanx-width` and
-`@phalanx-height` size the popup.
+`@phalanx-height` size the popup, and `@phalanx-shell` (default `bash`) is the
+shell it runs under as a login shell. Set options before `run-shell`, which is
+when the plugin reads them.
 
 These three avoid every default tmux binding and leave `h`/`j`/`k`/`l` free for
 vim-style pane navigation.
@@ -55,8 +57,18 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 `ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
-kills a session, `ctrl-r` reloads. The preview shows the tail of the selected
-pane.
+kills a session, `ctrl-r` reloads, `ctrl-/` toggles the preview of the selected
+pane. Start with the preview hidden by setting `@phalanx-preview off`.
+
+The list is split in two. **agents** are sessions running an agent, shown with
+its state, how long since its last turn, repo, branch, and a category. **sessions**
+are plain tmux sessions with no agent — ops sessions and work sessions whose
+agent is not running — and carry no state, so they show only repo and branch.
+
+Rows that cannot be attached are dimmed and say so in the category: `background`
+for an agent living inside a parent session, `detached` for one running outside
+tmux. Branch falls back to whatever the directory is checked out on, so sessions
+not created by phalanx still show one.
 
 ## One branch, one worktree, one session
 

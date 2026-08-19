@@ -1,3 +1,9 @@
+_phalanx_preview_hidden() {
+  case "$(tmux show-option -gqv @phalanx-preview)" in
+    off|hidden|0) printf ',hidden\n' ;;
+  esac
+}
+
 _phalanx_require_tty() {
   [ -t 1 ] && return 0
   printf 'phalanx: needs an interactive terminal\n' >&2
@@ -65,7 +71,8 @@ phalanx_pick() {
       --header='enter: attach · ctrl-b: work branch · ctrl-o: ops session · ctrl-n: new repo · ctrl-x: kill · ctrl-r: reload' \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
       --preview='tmux capture-pane -p -t {1} 2>/dev/null | tail -40' \
-      --preview-window='right,50%,border-left' \
+      --preview-window="right,45%,border-left$(_phalanx_preview_hidden)" \
+      --bind='ctrl-/:toggle-preview' \
       --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls)"
   )" || return 0
 
@@ -81,6 +88,8 @@ phalanx_pick() {
   target="$(printf '%s' "$line" | cut -f1)"
   kind="$(printf '%s' "$line" | cut -f4)"
   cwd="$(printf '%s' "$line" | cut -f3)"
+
+  [ "$kind" = header ] && return 0
 
   case "$key" in
     ctrl-b|ctrl-o)

@@ -31,6 +31,17 @@ _phalanx_mtimes() {
   done
 }
 
+# Sessions not created by phalanx carry no @phalanx-branch, so fall back to
+# whatever the directory is actually on.
+_phalanx_branches() {
+  local dir branch
+  while IFS= read -r dir; do
+    [ -n "$dir" ] && [ -d "$dir" ] || continue
+    branch="$(git -C "$dir" branch --show-current 2>/dev/null)"
+    [ -n "$branch" ] && printf 'BRANCH\t%s\t%s\n' "$dir" "$branch"
+  done
+}
+
 phalanx_rows() {
   local agents tab=$'\t'
   agents="$(_phalanx_agents_tsv)"
@@ -39,7 +50,18 @@ phalanx_rows() {
     tmux list-sessions -F "SESS${tab}#{session_name}${tab}#{@phalanx-role}${tab}#{@phalanx-branch}${tab}#{@phalanx-repo}${tab}#{session_path}" 2>/dev/null || true
     ps -eo pid=,tty= 2>/dev/null | awk -v OFS="$tab" '{ print "PS", $1, $2 }'
     printf '%s\n' "$agents" | _phalanx_mtimes
+    {
+      printf '%s\n' "$agents" | cut -f7
+      tmux list-sessions -F '#{session_path}' 2>/dev/null || true
+    } | sort -u | _phalanx_branches
     printf '%s\n' "$agents"
   } | awk -F"$tab" -v OFS="$tab" -v now="$(date +%s)" -f "$PHALANX_ROOT/lib/rows.awk" \
-    | sort -t"$tab" -k6,6 -k3,3
+    | sort -t"$tab" -k7,7 -k6,6 -k3,3 \
+    | awk -F"$tab" -v OFS="$tab" '
+        BEGIN { label[1] = "agents"; label[2] = "sessions" }
+        $7 != group {
+          group = $7
+          print "", "", "", "header", "\033[2m── " label[group] " " "─────────────────────────\033[0m", "", group
+        }
+        { print }'
 }
