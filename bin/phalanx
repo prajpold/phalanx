@@ -29,8 +29,6 @@ phalanx — tmux session manager for coding agents
   phalanx new [path] [layout] session for a directory
   phalanx work <branch>       worktree + session for a branch
   phalanx ops <branch>        terminal-only session for merges and rebases
-  phalanx push <branch>       push HEAD to a branch without checking it out
-  phalanx envs                env branches configured for this repo
   phalanx ls                  dashboard rows as TSV
   phalanx --version           print the version
 
@@ -52,8 +50,6 @@ case "$command" in
                    else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
   ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"
                    else phalanx_require_tty || exit 1; phalanx_ops_interactive; fi ;;
-  push)            phalanx_push "$@" ;;
-  envs)            phalanx_envs "$@" ;;
   ls)              phalanx_rows ;;
   -v|--version)    printf '%s\n' "$PHALANX_VERSION" ;;
   -h|--help|help)  usage ;;

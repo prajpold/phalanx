@@ -35,23 +35,17 @@ phalanx_new_interactive() {
 }
 
 _phalanx_branch_interactive() {
-  local root="$1" role="$2" branch candidates
+  local root="$1" role="$2" branch candidates prompt
 
-  if [ "$role" = ops ]; then
-    candidates="$(phalanx_envs "$root")"
-    if [ -z "$candidates" ]; then
-      printf 'phalanx: no env branches configured for %s\n' "$(basename "$root")" >&2
-      printf 'phalanx: add a line "env <branch>" to %s/.phalanx.conf\n' "$root" >&2
-      return 1
-    fi
-    branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick 'ops branch > ' 'env branches from config, or type one')"
-  else
-    candidates="$(
-      git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
-        | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u
-    )"
-    branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick 'work branch > ' 'existing branch, or type a new one')"
-  fi
+  candidates="$(
+    git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
+      | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u
+  )"
+
+  prompt='work branch > '
+  [ "$role" = ops ] && prompt='ops branch > '
+
+  branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick "$prompt" 'existing branch, or type a new one')"
 
   [ -n "$branch" ] || return 0
   if [ "$role" = ops ]; then

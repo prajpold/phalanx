@@ -38,12 +38,6 @@ _phalanx_config_values() {
     }' "$1"
 }
 
-phalanx_envs() {
-  local root
-  root="$(_phalanx_repo_root "${1:-$PWD}")" || return 1
-  _phalanx_config_values "$(_phalanx_repo_config "$root")" env
-}
-
 _phalanx_provision() {
   local root="$1" dest="$2" config item
   config="$(_phalanx_repo_config "$root")"
@@ -68,10 +62,51 @@ _phalanx_provision() {
   done
 }
 
+_phalanx_default_branch() {
+  local root="$1" ref candidate
+  ref="$(git -C "$root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"
+  if [ -n "$ref" ]; then
+    printf '%s\n' "${ref#origin/}"
+    return
+  fi
+  for candidate in main master; do
+    if git -C "$root" show-ref --verify --quiet "refs/heads/$candidate"; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
+
+# The main worktree holds the default branch and worktrees hold everything else.
+# Letting the main one drift off the default branch locks that branch out of a
+# worktree of its own, and git then refuses to create one.
 _phalanx_ensure_worktree() {
-  local root="$1" branch="$2" existing dest
+  local root="$1" branch="$2" existing default dest
 
   existing="$(_phalanx_worktree_holding "$root" "$branch")"
+  default="$(_phalanx_default_branch "$root")"
+
+  if [ "$branch" = "$default" ]; then
+    if [ "$existing" = "$root" ]; then
+      printf '%s\n' "$root"
+      return
+    fi
+    printf 'phalanx: %s belongs in the main worktree\n' "$branch" >&2
+    printf 'phalanx:   %s\n' "$root" >&2
+    printf 'phalanx: it is on %s instead, so put it back first:\n' \
+      "$(git -C "$root" branch --show-current 2>/dev/null)" >&2
+    printf 'phalanx:   git -C %s switch %s\n' "$root" "$branch" >&2
+    return 1
+  fi
+
+  if [ "$existing" = "$root" ]; then
+    printf 'phalanx: %s is checked out in the main worktree\n' "$branch" >&2
+    printf 'phalanx:   %s\n' "$root" >&2
+    printf 'phalanx: put that back on %s first, then try again:\n' "$default" >&2
+    printf 'phalanx:   git -C %s switch %s\n' "$root" "$default" >&2
+    return 1
+  fi
+
   if [ -n "$existing" ]; then
     printf '%s\n' "$existing"
     return
@@ -90,22 +125,4 @@ _phalanx_ensure_worktree() {
 
   _phalanx_provision "$root" "$dest"
   printf '%s\n' "$dest"
-}
-
-# A direct refspec push succeeds even when the branch is checked out in another
-# worktree, which silently leaves that worktree behind origin. Refuse instead.
-phalanx_push() {
-  local branch="${1:-}" root holder
-  [ -n "$branch" ] || { printf 'usage: phalanx push <env-branch>\n' >&2; return 1; }
-
-  root="$(_phalanx_repo_root)" || { printf 'phalanx: not a git repository\n' >&2; return 1; }
-  holder="$(_phalanx_worktree_holding "$root" "$branch")"
-  if [ -n "$holder" ]; then
-    printf 'phalanx: %s is checked out at %s\n' "$branch" "$holder" >&2
-    printf 'phalanx: merge there instead — a direct push would leave it stale\n' >&2
-    return 1
-  fi
-
-  git fetch origin || return 1
-  git push origin "HEAD:refs/heads/$branch"
 }

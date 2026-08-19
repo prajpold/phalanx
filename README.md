@@ -57,8 +57,6 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx new [path] [layout]` | session for a directory |
 | `phalanx work <branch>` | worktree + session for a branch |
 | `phalanx ops <branch>` | terminal-only session for merges and rebases |
-| `phalanx push <branch>` | push HEAD to a branch without checking it out |
-| `phalanx envs` | env branches configured for this repo |
 | `phalanx ls` | dashboard rows as TSV, for scripting |
 | `phalanx --version` | print the version |
 
@@ -112,33 +110,32 @@ Changing branch means changing session, and the conflict cannot arise.
 `phalanx work` reuses an existing worktree if the branch already has one, so
 running it twice for the same branch lands you in the same session.
 
-### Environment branches
+### The default branch stays put
 
-Branches that a test environment deploys from are shared, so they need care. A
-refspec push does not touch your index and works from every worktree at once,
-even while another worktree holds that branch:
+The main checkout holds the default branch and nothing else; every other branch
+gets a worktree. That is the whole rule, and it is what makes the conflict
+impossible rather than merely unlikely.
 
-```sh
-git push origin HEAD:refs/heads/staging
-```
-
-That last part is the trap: the push succeeds, but the worktree holding the
-branch is now silently behind the remote. So `phalanx push` refuses when any
-worktree holds the target branch and points you at the ops session instead.
-
-`--force-with-lease` is rejected with `stale info` unless you fetched first, and
-once you do fetch it overwrites whatever was pushed in the meantime. phalanx
-fetches and then pushes without force, so a push that would clobber somebody
-else fails loudly.
+phalanx enforces it rather than hoping. `phalanx work` refuses if the branch you
+asked for is checked out in the main worktree, and refuses to build a second
+worktree for the default branch when the main one has drifted off it. In both
+cases it prints the `git switch` that puts things right and changes nothing
+itself.
 
 ### Ops sessions
 
-An ops session is a terminal-only session — no editor, no agent — that owns the
-checkout of a shared branch and exists for merges, rebases and realigning an
-environment with the mainline. Because it is the single worktree holding that
-branch, there is exactly one writer and nothing diverges.
+An ops session is a terminal-only session — no editor, no agent — for merges,
+rebases and realigning an environment branch with the mainline. It is an ordinary
+work session with a different layout, so it holds the branch in a worktree of its
+own like any other, and that is what keeps a shared branch to a single writer.
 
-List the shared branches in the repo config and they show up under `ctrl-o`.
+Pushing to a shared branch needs nothing special as a result: go to its ops
+session and push. Reaching a branch you have not checked out is possible
+(`git push origin HEAD:refs/heads/staging` works from any worktree, even one that
+does not hold it) but pointless here, and worse — it leaves the worktree that
+does hold the branch silently behind the remote, and forcing it after a fetch
+overwrites whatever was pushed in the meantime. An explicit merge in the ops
+session shows you the conflict instead.
 
 ## Layouts
 
@@ -161,16 +158,15 @@ Per repo, in `<repo>/.phalanx.conf` or `~/.config/phalanx/repos/<repo>`. See
 `examples/repo.conf`.
 
 ```
-env	staging
 link	.env
 copy	.tool-versions
 postcreate	npm ci
 ```
 
-`env` marks a shared branch. `link` symlinks a path from the main worktree into
-each new one, `copy` copies it, and `postcreate` runs a command in the new
-worktree. Untracked files do not follow a `git worktree add`, and that — not the
-branch bookkeeping — is what usually makes worktrees unpleasant.
+`link` symlinks a path from the main worktree into each new one, `copy` copies it,
+and `postcreate` runs a command in the new worktree. Untracked files do not follow
+a `git worktree add`, and that — not the branch bookkeeping — is what usually
+makes worktrees unpleasant. Nothing here is required to get started.
 
 ## Agent state
 
