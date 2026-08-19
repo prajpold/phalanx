@@ -61,9 +61,15 @@ kills a session, `ctrl-r` reloads, `ctrl-/` toggles the preview of the selected
 pane. Start with the preview hidden by setting `@phalanx-preview off`.
 
 The list is split in two. **agents** are sessions running an agent, shown with
-its state, how long since its last turn, repo, branch, and a category. **sessions**
-are plain tmux sessions with no agent — ops sessions and work sessions whose
-agent is not running — and carry no state, so they show only repo and branch.
+its state, how long since its last turn, repo, branch, category and the agent's
+name. **sessions** are plain tmux sessions with no agent — ops sessions and work
+sessions whose agent is not running — and carry no state, so they show only repo
+and branch.
+
+Repo and branch identify a work session on their own, since a branch gets one
+worktree and one session. Background agents are the exception: they get no
+session and no worktree of their own, so several of them share a repo and branch
+and the name is all that tells them apart.
 
 Rows that cannot be attached are dimmed and say so in the category: `background`
 for an agent living inside a parent session, `detached` for one running outside

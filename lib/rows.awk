@@ -37,7 +37,7 @@ function category(kind, role, target) {
   return "session"
 }
 
-function emit(target, sid, cwd, kind, status, repo, br, role,   st, cat, disp, group) {
+function emit(target, sid, cwd, kind, status, repo, br, role, agent,   st, cat, disp, group) {
   if (repo == "") repo = basename(cwd)
   if (br == "" && cwd in gitbranch) br = gitbranch[cwd]
   if (br == "") br = "-"
@@ -46,7 +46,7 @@ function emit(target, sid, cwd, kind, status, repo, br, role,   st, cat, disp, g
 
   if (group == 1) {
     st = color(status) sprintf("%s %-8s", icon(status), status) "\033[0m"
-    disp = sprintf("%s %4s  %-18s %-24s %s", st, ago(mtime[sid]), repo, br, cat)
+    disp = sprintf("%s %4s  %-18s %-24s %-11s %s", st, ago(mtime[sid]), repo, br, cat, agent)
   } else {
     st = color(status) icon(status) "\033[0m"
     disp = sprintf("%s  %-18s %-24s %s", st, repo, br, cat)
@@ -87,13 +87,13 @@ END {
     sub(/:.*/, "", session)
     if (session != "") attached[session] = 1
 
-    emit(target, asid[i], acwd[i], akind[i], astatus[i], repo[session], branch[session], role[session])
+    emit(target, asid[i], acwd[i], akind[i], astatus[i], repo[session], branch[session], role[session], aname[i])
   }
 
   for (i = 1; i <= sessions; i++) {
     name = order[i]
     if (name in attached) continue
     status = (role[name] == "") ? "shell" : role[name]
-    emit(name ":", "", path[name], status, status, repo[name], branch[name], role[name])
+    emit(name ":", "", path[name], status, status, repo[name], branch[name], role[name], "")
   }
 }
