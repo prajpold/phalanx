@@ -4,8 +4,13 @@ _phalanx_preview_hidden() {
   esac
 }
 
+# fzf draws on /dev/tty, not on stdout, and every picker here runs inside a
+# command substitution where stdout is a pipe. Ask whether any descriptor is
+# still a terminal instead.
 _phalanx_require_tty() {
-  [ -t 1 ] && return 0
+  if [ -t 0 ] || [ -t 1 ] || [ -t 2 ]; then
+    return 0
+  fi
   printf 'phalanx: needs an interactive terminal\n' >&2
   return 1
 }
@@ -97,8 +102,11 @@ phalanx_pick() {
         printf 'phalanx: %s is not in a git repository\n' "$cwd" >&2
         return 1
       }
-      [ "$key" = ctrl-o ] && _phalanx_branch_interactive "$root" ops \
-                          || _phalanx_branch_interactive "$root" work
+      if [ "$key" = ctrl-o ]; then
+        _phalanx_branch_interactive "$root" ops
+      else
+        _phalanx_branch_interactive "$root" work
+      fi
       return
       ;;
   esac
