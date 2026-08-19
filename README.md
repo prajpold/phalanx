@@ -240,3 +240,14 @@ Background agents report `state` while interactive ones report `status`, two
 field names for the same idea. Background agents have no pid and live inside a
 parent session, so they cannot be attached to directly. tmux sessions with no
 agent still appear, which is how bare sessions stay visible.
+
+## Tests
+
+`tests/smoke` checks the seams a shell script has no compiler for: that the
+dispatcher only calls functions that exist, that awk and fzf accept what the code
+builds, and that nothing in `lib` ever passes `--force` to a worktree removal or
+deletes a branch.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
