@@ -95,18 +95,28 @@ _phalanx_colors() {
 _phalanx_columns() {
   if [ -n "${PHALANX_COMPACT:-}" ]; then
     printf '     age  cat  %-30s agent\n' 'repo/branch'
+  elif [ -n "${1:-}" ]; then
+    printf '   state       age  %-20s %-22s %-18s %-11s agent\n' \
+      repo branch 'checked out' category
   else
     printf '   state       age  %-20s %-22s %-11s agent\n' repo branch category
   fi
 }
 
+_phalanx_diverged() {
+  awk -F'\t' '$9 != "" { print 1; exit }'
+}
+
 phalanx_list() {
-  _phalanx_columns
-  phalanx_rows | awk -F'\t' '{ print $5 }'
+  local rows
+  rows="$(phalanx_rows)"
+  _phalanx_columns "$(printf '%s\n' "$rows" | _phalanx_diverged)"
+  [ -n "$rows" ] || return 0
+  printf '%s\n' "$rows" | awk -F'\t' '{ print $5 }'
 }
 
 phalanx_pick() {
-  local rows out key line target kind cwd pid root status
+  local rows out key line target kind cwd pid root status diverged
 
   case "$(tmux show-option -gqv @phalanx-compact)" in
     on|1|yes) PHALANX_COMPACT=1; export PHALANX_COMPACT ;;
@@ -114,6 +124,7 @@ phalanx_pick() {
 
   while :; do
     rows="$(phalanx_rows)"
+    diverged="$(printf '%s\n' "$rows" | _phalanx_diverged)"
     if [ -z "$(printf '%s' "$rows" | tr -d '[:space:]')" ]; then
       phalanx_new_interactive
       status=$?
@@ -125,7 +136,7 @@ phalanx_pick() {
       printf '%s\n' "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=5 \
         --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
         --highlight-line --color="$(_phalanx_colors)" \
-        --header="$(_phalanx_columns)" \
+        --header="$(_phalanx_columns "$diverged")" \
         --footer='enter attach · ctrl-b work · ctrl-o bare · ctrl-n new · ctrl-x kill · ctrl-r reload' \
         --footer-border=line \
         --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \

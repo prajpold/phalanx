@@ -101,6 +101,13 @@ binding uses.
 repo and branch share one column, the category shrinks to three letters and the
 agent name is cut. Set `@phalanx-compact on` to get the same in the popup.
 
+The branch column is the branch the session was opened for, which phalanx records
+once and does not move. What is actually checked out is read fresh on every
+listing, so a `git switch` inside a worktree shows up on the next refresh: a
+`checked out` column appears with the branch that is really there. The column is
+absent entirely while nothing has drifted, and compact mode marks the same thing
+by showing `≠branch` in place of the expected name.
+
 Age is time since the agent's last turn, from the transcript mtime. An agent that
 has not taken a turn yet has no transcript, so it falls back to how long ago it
 started.

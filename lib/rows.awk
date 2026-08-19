@@ -60,49 +60,69 @@ function basename(p,   n, a) {
   return n ? a[n] : p
 }
 
-function emit(target, sid, cwd, kind, status, repo, br, role, agent, started, pid,
-              cat, group, gutter, state, age, ident, disp) {
-  if (repo == "") repo = basename(cwd)
-  if (br == "" && cwd in gitbranch) br = gitbranch[cwd]
-  if (br == "") br = "-"
+# Collected rather than printed, because whether the divergence column exists at
+# all depends on every row having been seen.
+function collect(target, sid, cwd, kind, status, repo, br, role, agent, started, pid,
+                 actual) {
+  rows++
+  actual = (cwd in gitbranch) ? gitbranch[cwd] : ""
 
-  cat = category(kind, role, target)
-  group = (sid == "") ? 2 : 1
-  gutter = (role == "") ? "  " : paint("▌", "36") " "
+  R_target[rows] = target
+  R_sid[rows] = sid
+  R_cwd[rows] = cwd
+  R_kind[rows] = kind
+  R_status[rows] = status
+  R_pid[rows] = pid
+  R_repo[rows] = (repo == "") ? basename(cwd) : repo
+  R_cat[rows] = category(kind, role, target)
+  R_agent[rows] = agent
+  R_group[rows] = (sid == "") ? 2 : 1
+  R_gutter[rows] = (role == "") ? "  " : paint("▌", "36") " "
 
-  if (group == 1) {
-    state = paint(sprintf("%s %-8s", icon(status), status), status_color(status))
+  R_branch[rows] = (br != "") ? br : ((actual != "") ? actual : "-")
+
+  # Only a session pinned to a branch can drift off it; anything else is just
+  # reporting where it happens to be.
+  if (br != "" && actual != "" && actual != br) {
+    R_actual[rows] = actual
+    diverged = 1
   } else {
-    state = paint(sprintf("%s %-8s", icon(status), ""), status_color(status))
+    R_actual[rows] = ""
   }
 
-  age = ago(mtime[sid])
-  # No transcript yet means no turn yet, so fall back to when the agent started.
-  if (age == "-" && started != "") age = ago(int(started / 1000))
+  R_age[rows] = ago(mtime[sid])
+  if (R_age[rows] == "-" && started != "") R_age[rows] = ago(int(started / 1000))
+}
 
+function render(i,   state, ident, disp) {
   if (compact) {
-    ident = (br == "-") ? trunc(repo, 30) : trunc(repo, 16) "/" trunc(br, 13)
+    ident = (R_actual[i] != "") ? "≠" trunc(R_actual[i], 12) : trunc(R_branch[i], 13)
+    ident = trunc(R_repo[i], 16) "/" ident
     disp = sprintf("%s%s %4s  %s %s %s",
-                   gutter,
-                   paint(icon(status), status_color(status)),
-                   age,
-                   paint(sprintf("%-4s", short_category(cat)), "2"),
+                   R_gutter[i],
+                   paint(icon(R_status[i]), status_color(R_status[i])),
+                   R_age[i],
+                   paint(sprintf("%-4s", short_category(R_cat[i])), "2"),
                    paint(sprintf("%-30s", ident), "1"),
-                   paint(trunc(agent, 35), "2"))
-    print target, sid, cwd, kind, disp, repo, group, pid
-    return
+                   paint(trunc(R_agent[i], 35), "2"))
+  } else {
+    if (R_group[i] == 1) {
+      state = sprintf("%s %-8s", icon(R_status[i]), R_status[i])
+    } else {
+      state = sprintf("%s %-8s", icon(R_status[i]), "")
+    }
+    state = paint(state, status_color(R_status[i]))
+
+    disp = sprintf("%s%s %4s  %s %s%s %s %s",
+                   R_gutter[i], state, R_age[i],
+                   paint(fit(R_repo[i], 20), "1"),
+                   paint(fit(R_branch[i], 22), "36"),
+                   diverged ? " " paint(fit(R_actual[i], 18), "33") : "",
+                   paint(sprintf("%-11s", R_cat[i]), "2"),
+                   paint(R_agent[i], "2"))
   }
 
-  {
-    disp = sprintf("%s%s %4s  %s %s %s %s",
-                   gutter, state, age,
-                   paint(fit(repo, 20), "1"),
-                   paint(fit(br, 22), "36"),
-                   paint(sprintf("%-11s", cat), "2"),
-                   paint(agent, "2"))
-  }
-
-  print target, sid, cwd, kind, disp, repo, group, pid
+  print R_target[i], R_sid[i], R_cwd[i], R_kind[i], disp, R_repo[i], R_group[i], R_pid[i], R_actual[i]
 }
 
 $1 == "PANE"   { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; next }
@@ -137,15 +157,17 @@ END {
     sub(/:.*/, "", session)
     if (session != "") attached[session] = 1
 
-    emit(target, asid[i], acwd[i], akind[i], astatus[i],
-         repo[session], branch[session], role[session], aname[i], astarted[i], apid[i])
+    collect(target, asid[i], acwd[i], akind[i], astatus[i],
+            repo[session], branch[session], role[session], aname[i], astarted[i], apid[i])
   }
 
   for (i = 1; i <= sessions; i++) {
     name = order[i]
     if (name in attached) continue
     status = (role[name] == "") ? "shell" : role[name]
-    emit(name ":", "", path[name], status, status,
-         repo[name], branch[name], role[name], "", "", "")
+    collect(name ":", "", path[name], status, status,
+            repo[name], branch[name], role[name], "", "", "")
   }
+
+  for (i = 1; i <= rows; i++) render(i)
 }

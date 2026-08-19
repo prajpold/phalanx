@@ -113,6 +113,18 @@ _phalanx_ensure_worktree() {
   fi
 
   dest="$(_phalanx_worktree_path "$(basename "$root")" "$branch")"
+
+  # The directory outliving its branch means somebody switched inside it, and
+  # git's own message for that is only "already exists".
+  if [ -e "$dest" ]; then
+    printf 'phalanx: %s exists but no longer holds %s\n' "$dest" "$branch" >&2
+    printf 'phalanx: it is on %s, so switch it back or drop it:\n' \
+      "$(git -C "$dest" branch --show-current 2>/dev/null || echo 'an unknown branch')" >&2
+    printf 'phalanx:   git -C %s switch %s\n' "$dest" "$branch" >&2
+    printf 'phalanx:   phalanx rm %s\n' "$(git -C "$dest" branch --show-current 2>/dev/null)" >&2
+    return 1
+  fi
+
   mkdir -p "$(dirname "$dest")"
 
   if git -C "$root" show-ref --verify --quiet "refs/heads/$branch"; then
