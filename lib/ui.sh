@@ -4,11 +4,10 @@ _phalanx_preview_hidden() {
   esac
 }
 
-# fzf draws on /dev/tty, not on stdout, and every picker here runs inside a
-# command substitution where stdout is a pipe. Ask whether any descriptor is
-# still a terminal instead.
-_phalanx_require_tty() {
-  if [ -t 0 ] || [ -t 1 ] || [ -t 2 ]; then
+# Checked once, from the dispatcher, where the descriptors are still the ones
+# the terminal handed us. Inside the pickers every one of them may be a pipe.
+phalanx_require_tty() {
+  if [ -t 0 ] && [ -t 1 ]; then
     return 0
   fi
   printf 'phalanx: needs an interactive terminal\n' >&2
@@ -17,7 +16,6 @@ _phalanx_require_tty() {
 
 _phalanx_fzf_pick() {
   local prompt="$1" header="$2" out query selection
-  _phalanx_require_tty || return 1
   out="$(fzf --print-query --prompt="$prompt" --header="$header")" || true
   query="$(printf '%s\n' "$out" | sed -n 1p)"
   selection="$(printf '%s\n' "$out" | sed -n 2p)"
@@ -41,16 +39,22 @@ phalanx_new_interactive() {
 }
 
 _phalanx_branch_interactive() {
-  local root="$1" role="$2" branch
+  local root="$1" role="$2" branch candidates
 
   if [ "$role" = ops ]; then
-    branch="$(phalanx_envs "$root" | _phalanx_fzf_pick 'ops branch > ' 'env branches from config, or type one')"
+    candidates="$(phalanx_envs "$root")"
+    if [ -z "$candidates" ]; then
+      printf 'phalanx: no env branches configured for %s\n' "$(basename "$root")" >&2
+      printf 'phalanx: add a line "env <branch>" to %s/.phalanx.conf\n' "$root" >&2
+      return 1
+    fi
+    branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick 'ops branch > ' 'env branches from config, or type one')"
   else
-    branch="$(
+    candidates="$(
       git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
-        | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u \
-        | _phalanx_fzf_pick 'work branch > ' 'existing branch, or type a new one'
+        | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u
     )"
+    branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick 'work branch > ' 'existing branch, or type a new one')"
   fi
 
   [ -n "$branch" ] || return 0
@@ -63,7 +67,6 @@ _phalanx_branch_interactive() {
 
 phalanx_pick() {
   local rows out key line target kind cwd root
-  _phalanx_require_tty || return 1
 
   rows="$(phalanx_rows)"
   if [ -z "$(printf '%s' "$rows" | tr -d '[:space:]')" ]; then
@@ -73,7 +76,8 @@ phalanx_pick() {
 
   out="$(
     printf '%s\n' "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=5 \
-      --header='enter: attach · ctrl-b: work branch · ctrl-o: ops session · ctrl-n: new repo · ctrl-x: kill · ctrl-r: reload' \
+      --header="$(printf 'enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload\nstate      age  repo               branch                   category    agent')" \
+      --header-first \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
       --preview='tmux capture-pane -p -t {1} 2>/dev/null | tail -40' \
       --preview-window="right,45%,border-left$(_phalanx_preview_hidden)" \
@@ -93,8 +97,6 @@ phalanx_pick() {
   target="$(printf '%s' "$line" | cut -f1)"
   kind="$(printf '%s' "$line" | cut -f4)"
   cwd="$(printf '%s' "$line" | cut -f3)"
-
-  [ "$kind" = header ] && return 0
 
   case "$key" in
     ctrl-b|ctrl-o)

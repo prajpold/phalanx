@@ -33,10 +33,12 @@ command="${1:-pick}"
 [ $# -gt 0 ] && shift
 
 case "$command" in
-  pick)            phalanx_pick "$@" ;;
+  pick)            phalanx_require_tty || exit 1; phalanx_pick "$@" ;;
   new)             phalanx_new "$@" ;;
-  work)            if [ $# -gt 0 ]; then phalanx_work "$@"; else phalanx_work_interactive; fi ;;
-  ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"; else phalanx_ops_interactive; fi ;;
+  work)            if [ $# -gt 0 ]; then phalanx_work "$@"
+                   else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
+  ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"
+                   else phalanx_require_tty || exit 1; phalanx_ops_interactive; fi ;;
   push)            phalanx_push "$@" ;;
   envs)            phalanx_envs "$@" ;;
   ls)              phalanx_rows ;;

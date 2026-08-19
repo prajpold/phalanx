@@ -60,11 +60,12 @@ In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 kills a session, `ctrl-r` reloads, `ctrl-/` toggles the preview of the selected
 pane. Start with the preview hidden by setting `@phalanx-preview off`.
 
-The list is split in two. **agents** are sessions running an agent, shown with
-its state, how long since its last turn, repo, branch, category and the agent's
-name. **sessions** are plain tmux sessions with no agent — ops sessions and work
-sessions whose agent is not running — and carry no state, so they show only repo
-and branch.
+Rows are ordered in two blocks. Agents come first, with state, how long since
+the last turn, repo, branch, category and the agent's name. Plain tmux sessions
+with no agent follow — ops sessions and work sessions whose agent is not running
+— and since they have no state they show only repo and branch. The category
+column is what names the block, because fzf has no unselectable rows and a
+separator line would just be another thing to accidentally pick.
 
 Repo and branch identify a work session on their own, since a branch gets one
 worktree and one session. Background agents are the exception: they get no

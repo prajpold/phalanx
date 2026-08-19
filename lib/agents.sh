@@ -56,12 +56,5 @@ phalanx_rows() {
     } | sort -u | _phalanx_branches
     printf '%s\n' "$agents"
   } | awk -F"$tab" -v OFS="$tab" -v now="$(date +%s)" -f "$PHALANX_ROOT/lib/rows.awk" \
-    | sort -t"$tab" -k7,7 -k6,6 -k3,3 \
-    | awk -F"$tab" -v OFS="$tab" '
-        BEGIN { label[1] = "agents"; label[2] = "sessions" }
-        $7 != group {
-          group = $7
-          print "", "", "", "header", "\033[2m── " label[group] " " "─────────────────────────\033[0m", "", group
-        }
-        { print }'
+    | sort -t"$tab" -k7,7 -k6,6 -k3,3
 }
