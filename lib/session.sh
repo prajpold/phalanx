@@ -36,6 +36,13 @@ _phalanx_layout_file() {
   return 1
 }
 
+# The state column is the point of the dashboard, so a session that is meant to
+# run an agent has to declare the window that runs it. Matched on the window name
+# rather than the command, which leaves you free to wrap or flag it.
+_phalanx_layout_has_agent() {
+  awk '$1 == "agent" { found = 1 } END { exit !found }' "$1"
+}
+
 _phalanx_create_session() {
   local name="$1" path="$2" layout="$3" role="$4" branch="$5" repo="$6"
   local file window command first=1 line
@@ -49,6 +56,14 @@ _phalanx_create_session() {
     printf 'phalanx: no layout %s\n' "${layout:-default}" >&2
     return 1
   }
+
+  if [ "$role" = work ] && ! _phalanx_layout_has_agent "$file"; then
+    printf 'phalanx: %s declares no agent window\n' "$file" >&2
+    printf 'phalanx: a work session without one reports no state, which is the\n' >&2
+    printf 'phalanx: whole point of the dashboard. Add a window named agent:\n' >&2
+    printf 'phalanx:   agent\tclaude\n' >&2
+    return 1
+  fi
 
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in ''|\#*) continue ;; esac
@@ -109,7 +124,7 @@ _phalanx_branch_session() {
 }
 
 phalanx_work() {
-  _phalanx_branch_session "${1:-}" "${PHALANX_WORK_LAYOUT:-default}" work "${2:-$PWD}"
+  _phalanx_branch_session "${1:-}" "${PHALANX_WORK_LAYOUT:-}" work "${2:-$PWD}"
 }
 
 phalanx_ops() {

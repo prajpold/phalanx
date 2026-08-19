@@ -57,7 +57,7 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx new [path] [layout]` | session for a directory |
 | `phalanx work <branch>` | worktree + session for a branch |
 | `phalanx ops <branch>` | terminal-only session for merges and rebases |
-| `phalanx ls [-c]` | dashboard rows as TSV, for scripting |
+| `phalanx ls [-c]` | list sessions, `--tsv` for the machine-readable form |
 | `phalanx --version` | print the version |
 
 Nothing needs setting up per repo to get going: `cd` into one and run
@@ -77,6 +77,10 @@ A cyan bar in the left gutter marks what phalanx manages. It comes from the
 grew on its own — a hand-rolled tmux session, an agent started outside phalanx —
 has no bar and reads `external`, `background` or `detached` in the category
 column.
+
+`ls` prints what the dashboard shows. `--tsv` gives the raw rows instead, with
+the pane target, session id and path the popup needs, which is what the reload
+binding uses.
 
 `-c` gives a narrower row for a laptop screen: the status word drops to its icon,
 repo and branch share one column, the category shrinks to three letters and the
@@ -151,8 +155,16 @@ agent	claude
 shell
 ```
 
+A work session has to declare the window that runs the agent, by naming it
+`agent`. Without it the session reports no state, which is the one thing the
+dashboard exists for, so `new` and `work` refuse the layout and say what to add.
+The check is on the window name, not the command, so `claude --resume` or a
+wrapper is fine. Ops sessions have no such requirement — being agent-less is
+their purpose.
+
 Lookup order: `<path>/.phalanx`, `~/.config/phalanx/layouts/<name>`, then
-`layouts/<name>` here. Commands are sent with `send-keys` rather than run as the
+`layouts/<name>` here. `work` follows the same order, so a repo can ship the
+layout its own sessions use. Commands are sent with `send-keys` rather than run as the
 window command, so quitting nvim or claude leaves a shell instead of closing the
 window.
 

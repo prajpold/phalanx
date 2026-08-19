@@ -63,6 +63,11 @@ _phalanx_columns() {
   fi
 }
 
+phalanx_list() {
+  _phalanx_columns
+  phalanx_rows | awk -F'\t' '{ print $5 }'
+}
+
 phalanx_pick() {
   local rows out key line target kind cwd root
 
@@ -84,7 +89,7 @@ phalanx_pick() {
       --footer='enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
       --footer-border=line \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
-      --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls)"
+      --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls --tsv)"
   )" || return 0
 
   key="$(printf '%s\n' "$out" | sed -n 1p)"

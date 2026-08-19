@@ -29,7 +29,7 @@ phalanx — tmux session manager for coding agents
   phalanx new [path] [layout] session for a directory
   phalanx work <branch>       worktree + session for a branch
   phalanx ops <branch>        terminal-only session for merges and rebases
-  phalanx ls [-c]             dashboard rows as TSV, -c for narrow terminals
+  phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
 
 env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos)
@@ -43,9 +43,14 @@ done
 command="${1:-pick}"
 [ $# -gt 0 ] && shift
 
-case "${1:-}" in
-  -c|--compact) PHALANX_COMPACT=1; export PHALANX_COMPACT; shift ;;
-esac
+PHALANX_TSV=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -c|--compact) PHALANX_COMPACT=1; export PHALANX_COMPACT; shift ;;
+    --tsv)        PHALANX_TSV=1; shift ;;
+    *)            break ;;
+  esac
+done
 
 case "$command" in
   pick)            phalanx_require_tty || exit 1; phalanx_pick "$@" ;;
@@ -54,7 +59,7 @@ case "$command" in
                    else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
   ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"
                    else phalanx_require_tty || exit 1; phalanx_ops_interactive; fi ;;
-  ls)              phalanx_rows ;;
+  ls)              if [ -n "$PHALANX_TSV" ]; then phalanx_rows; else phalanx_list; fi ;;
   -v|--version)    printf '%s\n' "$PHALANX_VERSION" ;;
   -h|--help|help)  usage ;;
   *)               usage >&2; exit 1 ;;
