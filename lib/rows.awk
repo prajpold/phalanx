@@ -59,7 +59,7 @@ function basename(p,   n, a) {
   return n ? a[n] : p
 }
 
-function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
+function emit(target, sid, cwd, kind, status, repo, br, role, agent, started, pid,
               cat, group, gutter, state, age, ident, disp) {
   if (repo == "") repo = basename(cwd)
   if (br == "" && cwd in gitbranch) br = gitbranch[cwd]
@@ -88,7 +88,7 @@ function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
                    paint(sprintf("%-4s", short_category(cat)), "2"),
                    paint(sprintf("%-30s", ident), "1"),
                    paint(trunc(agent, 35), "2"))
-    print target, sid, cwd, kind, disp, repo, group
+    print target, sid, cwd, kind, disp, repo, group, pid
     return
   }
 
@@ -101,7 +101,7 @@ function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
                    paint(agent, "2"))
   }
 
-  print target, sid, cwd, kind, disp, repo, group
+  print target, sid, cwd, kind, disp, repo, group, pid
 }
 
 $1 == "PANE"   { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; next }
@@ -137,7 +137,7 @@ END {
     if (session != "") attached[session] = 1
 
     emit(target, asid[i], acwd[i], akind[i], astatus[i],
-         repo[session], branch[session], role[session], aname[i], astarted[i])
+         repo[session], branch[session], role[session], aname[i], astarted[i], apid[i])
   }
 
   for (i = 1; i <= sessions; i++) {
@@ -145,6 +145,6 @@ END {
     if (name in attached) continue
     status = (role[name] == "") ? "shell" : role[name]
     emit(name ":", "", path[name], status, status,
-         repo[name], branch[name], role[name], "", "")
+         repo[name], branch[name], role[name], "", "", "")
   }
 }

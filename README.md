@@ -67,7 +67,18 @@ to guess which branches an environment deploys from.
 
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 `ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
-kills a session, `ctrl-r` reloads.
+kills a session, `ctrl-r` reloads. `esc` backs out of a picker to the list, and
+out of the list to close. Anything that cannot be done on the chosen row says so
+and waits for a key, rather than closing the popup.
+
+`ctrl-x` kills the tmux session when the row has one. Where it does not, an agent
+running outside tmux can still be stopped by its pid, on confirmation; a
+background agent that reports neither has to be handled from `claude agents`,
+which is what phalanx will tell you.
+
+The current row is highlighted with a background, since rows carry their own
+colours and a foreground change would not show through. `@phalanx-highlight`
+sets it — 238 by default, which suits a dark theme.
 
 The name and version sit on the popup's own border, which sizes itself, so the
 list keeps the column names directly above it and the keys along the bottom.
