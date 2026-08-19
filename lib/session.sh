@@ -44,8 +44,8 @@ _phalanx_layout_has_agent() {
 }
 
 _phalanx_create_session() {
-  local name="$1" path="$2" layout="$3" role="$4" branch="$5" repo="$6"
-  local file window command first=1 line
+  local name="$1" path="$2" layout="$3" branch="$4" repo="$5" strict="$6"
+  local file window command first=1 line role
 
   if tmux has-session -t "=$name" 2>/dev/null; then
     _phalanx_goto "$name:"
@@ -57,12 +57,17 @@ _phalanx_create_session() {
     return 1
   }
 
-  if [ "$role" = work ] && ! _phalanx_layout_has_agent "$file"; then
+  if _phalanx_layout_has_agent "$file"; then
+    role=agent
+  elif [ -n "$strict" ]; then
     printf 'phalanx: %s declares no agent window\n' "$file" >&2
-    printf 'phalanx: a work session without one reports no state, which is the\n' >&2
-    printf 'phalanx: whole point of the dashboard. Add a window named agent:\n' >&2
+    printf 'phalanx: a session that is meant to run one reports no state without it,\n' >&2
+    printf 'phalanx: which is what the dashboard is for. Add a window named agent:\n' >&2
     printf 'phalanx:   agent\tclaude\n' >&2
+    printf 'phalanx: or name a layout explicitly to ask for a session without one.\n' >&2
     return 1
+  else
+    role=plain
   fi
 
   while IFS= read -r line || [ -n "$line" ]; do
@@ -95,7 +100,7 @@ _phalanx_create_session() {
 }
 
 phalanx_new() {
-  local path="${1:-$PWD}" layout="${2:-}" root repo branch
+  local path="${1:-$PWD}" layout="${2:-}" root repo branch strict=""
 
   [ -d "$path" ] || { printf 'phalanx: not a directory: %s\n' "$path" >&2; return 1; }
   path="$(cd "$path" && pwd)"
@@ -104,29 +109,39 @@ phalanx_new() {
   repo="${root:+$(basename "$root")}"
   branch="$(git -C "$path" branch --show-current 2>/dev/null)"
 
+  [ -n "$layout" ] || strict=strict
+
   _phalanx_create_session "$(_phalanx_sanitize "$(basename "$path")")" \
-    "$path" "$layout" work "$branch" "${repo:-$(basename "$path")}"
+    "$path" "$layout" "$branch" "${repo:-$(basename "$path")}" "$strict"
 }
 
 _phalanx_branch_session() {
-  local branch="$1" layout="$2" role="$3" root repo dest
+  local branch="$1" layout="$2" root repo dest strict=""
   [ -n "$branch" ] || { printf 'phalanx: branch required\n' >&2; return 1; }
 
-  root="$(_phalanx_repo_root "${4:-$PWD}")" || {
+  root="$(_phalanx_repo_root "${3:-$PWD}")" || {
     printf 'phalanx: not a git repository\n' >&2
     return 1
   }
   repo="$(basename "$root")"
   dest="$(_phalanx_ensure_worktree "$root" "$branch")" || return 1
 
+  [ -n "$layout" ] || strict=strict
+
   _phalanx_create_session "$(_phalanx_sanitize "$repo/$branch")" \
-    "$dest" "$layout" "$role" "$branch" "$repo"
+    "$dest" "$layout" "$branch" "$repo" "$strict"
 }
 
 phalanx_work() {
-  _phalanx_branch_session "${1:-}" "${PHALANX_WORK_LAYOUT:-}" work "${2:-$PWD}"
+  _phalanx_branch_session "${1:-}" "${2:-}" "${3:-$PWD}"
 }
 
-phalanx_ops() {
-  _phalanx_branch_session "${1:-}" "${PHALANX_OPS_LAYOUT:-ops}" ops "${2:-$PWD}"
+_phalanx_bare_layout() {
+  local value
+  value="$(tmux show-option -gqv @phalanx-bare-layout 2>/dev/null)"
+  printf '%s\n' "${value:-bare}"
+}
+
+phalanx_bare() {
+  _phalanx_branch_session "${1:-}" "$(_phalanx_bare_layout)" "${2:-$PWD}"
 }

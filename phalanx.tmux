@@ -25,4 +25,4 @@ bind_popup() {
 
 bind_popup "$(option @phalanx-key g)" pick
 bind_popup "$(option @phalanx-work-key b)" work
-bind_popup "$(option @phalanx-ops-key e)" ops
+bind_popup "$(option @phalanx-bare-key e)" bare

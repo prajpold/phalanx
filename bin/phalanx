@@ -27,8 +27,10 @@ phalanx — tmux session manager for coding agents
 
   phalanx [pick]              agent dashboard (fzf)
   phalanx new [path] [layout] session for a directory
-  phalanx work <branch>       worktree + session for a branch
-  phalanx ops <branch>        terminal-only session for merges and rebases
+  phalanx work <branch> [layout]
+                              worktree + session for a branch
+  phalanx bare <branch>       same, with a layout that runs no agent, for
+                              whatever you would rather do on the branch yourself
   phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
 
@@ -55,10 +57,10 @@ done
 case "$command" in
   pick)            phalanx_require_tty || exit 1; phalanx_pick "$@" ;;
   new)             phalanx_new "$@" ;;
-  work)            if [ $# -gt 0 ]; then phalanx_work "$@"
+  work)            if [ $# -gt 0 ]; then phalanx_work "$1" "${2:-}" "$PWD"
                    else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
-  ops)             if [ $# -gt 0 ]; then phalanx_ops "$@"
-                   else phalanx_require_tty || exit 1; phalanx_ops_interactive; fi ;;
+  bare)            if [ $# -gt 0 ]; then phalanx_bare "$1" "$PWD"
+                   else phalanx_require_tty || exit 1; phalanx_bare_interactive; fi ;;
   ls)              if [ -n "$PHALANX_TSV" ]; then phalanx_rows; else phalanx_list; fi ;;
   -v|--version)    printf '%s\n' "$PHALANX_VERSION" ;;
   -h|--help|help)  usage ;;

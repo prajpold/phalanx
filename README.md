@@ -35,11 +35,11 @@ run-shell /path/to/phalanx/phalanx.tmux
 | --- | --- |
 | `prefix + g` | agent dashboard |
 | `prefix + b` | work session on a branch |
-| `prefix + e` | ops session on an environment branch |
+| `prefix + e` | branch session with no agent |
 
 The popup inherits the current pane's directory, which is how `b` and `e` find
 the repo to act on. Rebind with `@phalanx-key`, `@phalanx-work-key` and
-`@phalanx-ops-key`, or set one to `none` to skip it; `@phalanx-width` and
+`@phalanx-bare-key`, or set one to `none` to skip it; `@phalanx-width` and
 `@phalanx-height` size the popup, and `@phalanx-shell` (default `bash`) is the
 shell it runs under as a login shell. Set options before `run-shell`, which is
 when the plugin reads them.
@@ -55,18 +55,17 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | --- | --- |
 | `phalanx` | dashboard: attach, create, kill |
 | `phalanx new [path] [layout]` | session for a directory |
-| `phalanx work <branch>` | worktree + session for a branch |
-| `phalanx ops <branch>` | terminal-only session for merges and rebases |
+| `phalanx work <branch> [layout]` | worktree + session for a branch |
+| `phalanx bare <branch>` | the same with a layout that runs no agent |
 | `phalanx ls [-c]` | list sessions, `--tsv` for the machine-readable form |
 | `phalanx --version` | print the version |
 
 Nothing needs setting up per repo to get going: `cd` into one and run
 `phalanx new .` for a session on the current checkout, or `phalanx work <branch>`
-to get a worktree of its own. Only `ops` needs a repo config, since it has no way
-to guess which branches an environment deploys from.
+to get a worktree of its own. Nothing needs configuring first.
 
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
-`ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
+`ctrl-o` opens one with no agent, `ctrl-n` creates a session from a path, `ctrl-x`
 kills a session, `ctrl-r` reloads. `esc` backs out of a picker to the list, and
 out of the list to close. Anything that cannot be done on the chosen row says so
 and waits for a key, rather than closing the popup.
@@ -103,7 +102,7 @@ started.
 
 Rows are ordered in two blocks. Agents come first, with state, how long since
 the last turn, repo, branch, category and the agent's name. Plain tmux sessions
-with no agent follow — ops sessions and work sessions whose agent is not running
+with no agent follow — bare sessions and ones whose agent is not running
 — and since they have no state they show only repo and branch. The category
 column is what names the block, because fzf has no unselectable rows and a
 separator line would just be another thing to accidentally pick.
@@ -141,20 +140,31 @@ worktree for the default branch when the main one has drifted off it. In both
 cases it prints the `git switch` that puts things right and changes nothing
 itself.
 
-### Ops sessions
+### Sessions with no agent
 
-An ops session is a terminal-only session — no editor, no agent — for merges,
-rebases and realigning an environment branch with the mainline. It is an ordinary
-work session with a different layout, so it holds the branch in a worktree of its
-own like any other, and that is what keeps a shared branch to a single writer.
+phalanx is the agent and the tmux session together, so a session without one
+looks like it misses the point. It does not, and the reason is the worktree rule
+above: a branch can only be checked out in one place, and under that rule the only
+place is a worktree phalanx made. So to touch a branch at all — to merge into it,
+to look at it, to push it — it has to exist on disk somewhere, with or without an
+agent in it.
 
-Pushing to a shared branch needs nothing special as a result: go to its ops
-session and push. Reaching a branch you have not checked out is possible
-(`git push origin HEAD:refs/heads/staging` works from any worktree, even one that
-does not hold it) but pointless here, and worse — it leaves the worktree that
+An agent-less session is therefore not a second kind of session competing with
+the first. It is what keeps the worktree rule livable, and without it the rule
+would be a trap: every branch needs a worktree, but worktrees only come with
+agents in them.
+
+`phalanx bare <branch>` is `work` with a layout that runs no agent, which is why
+it takes no separate concept and has no separate name of its own. Pushing to a
+shared branch needs nothing more: go to the session that holds it and push.
+Reaching a branch you have not checked out is possible — `git push origin
+HEAD:refs/heads/staging` works from any worktree — but it leaves the worktree that
 does hold the branch silently behind the remote, and forcing it after a fetch
-overwrites whatever was pushed in the meantime. An explicit merge in the ops
-session shows you the conflict instead.
+overwrites whatever was pushed in the meantime. Merging where the branch actually
+lives shows you the conflict instead.
+
+The empty state column on such a row is not missing information. The category
+says `plain`, which is the answer.
 
 ## Layouts
 
@@ -166,12 +176,16 @@ agent	claude
 shell
 ```
 
-A work session has to declare the window that runs the agent, by naming it
-`agent`. Without it the session reports no state, which is the one thing the
-dashboard exists for, so `new` and `work` refuse the layout and say what to add.
-The check is on the window name, not the command, so `claude --resume` or a
-wrapper is fine. Ops sessions have no such requirement — being agent-less is
-their purpose.
+The layout decides whether the session runs an agent, and phalanx reads the
+answer off it rather than off which command you typed: a layout with a window
+named `agent` gives role `agent`, one without gives `plain`. The name is what is
+checked, not the command, so `claude --resume` or a wrapper is fine.
+
+Leave the layout unnamed and phalanx insists on an agent, because that is the
+path you take without thinking and a default quietly missing its agent window
+would kill the dashboard. Name a layout and it is taken as deliberate, so
+`phalanx new . bare` is fine while `phalanx new .` against an agent-less default
+is refused.
 
 Lookup order: `<path>/.phalanx`, `~/.config/phalanx/layouts/<name>`, then
 `layouts/<name>` here. `work` follows the same order, so a repo can ship the
@@ -200,4 +214,4 @@ makes worktrees unpleasant. Nothing here is required to get started.
 Background agents report `state` while interactive ones report `status`, two
 field names for the same idea. Background agents have no pid and live inside a
 parent session, so they cannot be attached to directly. tmux sessions with no
-agent still appear, which is how ops sessions stay visible.
+agent still appear, which is how bare sessions stay visible.

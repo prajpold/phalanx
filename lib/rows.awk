@@ -22,16 +22,17 @@ function status_color(status) {
 function category(kind, role, target) {
   if (kind == "background") return "background"
   if (target == "") return "detached"
-  if (role == "ops") return "ops"
   if (role == "") return "external"
-  return "phalanx"
+  if (role == "plain") return "plain"
+  return "agent"
 }
 
 function short_category(cat) {
   if (cat == "background") return "bg"
   if (cat == "detached") return "det"
   if (cat == "external") return "ext"
-  if (cat == "phalanx") return "phx"
+  if (cat == "plain") return "pln"
+  if (cat == "agent") return "agt"
   return cat
 }
 

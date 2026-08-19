@@ -35,7 +35,7 @@ phalanx_new_interactive() {
 }
 
 _phalanx_branch_interactive() {
-  local root="$1" role="$2" branch candidates prompt
+  local root="$1" layout="$2" branch candidates prompt
 
   candidates="$(
     git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
@@ -43,16 +43,30 @@ _phalanx_branch_interactive() {
   )"
 
   prompt='work branch > '
-  [ "$role" = ops ] && prompt='ops branch > '
+  [ -n "$layout" ] && prompt="$layout branch > "
 
   branch="$(printf '%s\n' "$candidates" | _phalanx_fzf_pick "$prompt" 'existing branch, or type a new one · esc goes back')"
 
   [ -n "$branch" ] || return "$PHALANX_BACK"
-  if [ "$role" = ops ]; then
-    phalanx_ops "$branch" "$root"
-  else
-    phalanx_work "$branch" "$root"
+  phalanx_work "$branch" "$layout" "$root"
+}
+
+phalanx_work_interactive() {
+  local root
+  if ! root="$(_phalanx_repo_root "${1:-$PWD}")"; then
+    printf 'phalanx: not a git repository\n' >&2
+    return 1
   fi
+  _phalanx_branch_interactive "$root" ""
+}
+
+phalanx_bare_interactive() {
+  local root
+  if ! root="$(_phalanx_repo_root "${1:-$PWD}")"; then
+    printf 'phalanx: not a git repository\n' >&2
+    return 1
+  fi
+  _phalanx_branch_interactive "$root" "$(_phalanx_bare_layout)"
 }
 
 # Returned by a picker the user backed out of, so the caller redraws instead of
@@ -112,7 +126,7 @@ phalanx_pick() {
         --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
         --highlight-line --color="$(_phalanx_colors)" \
         --header="$(_phalanx_columns)" \
-        --footer='enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
+        --footer='enter attach · ctrl-b work · ctrl-o bare · ctrl-n new · ctrl-x kill · ctrl-r reload' \
         --footer-border=line \
         --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \
         --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls --tsv)"
@@ -141,9 +155,9 @@ phalanx_pick() {
           continue
         fi
         if [ "$key" = ctrl-o ]; then
-          _phalanx_branch_interactive "$root" ops
+          _phalanx_branch_interactive "$root" "$(_phalanx_bare_layout)"
         else
-          _phalanx_branch_interactive "$root" work
+          _phalanx_branch_interactive "$root" ""
         fi
         status=$?
         [ "$status" -eq "$PHALANX_BACK" ] && continue
