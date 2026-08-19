@@ -19,7 +19,13 @@ itself, so there is no state file to keep in sync.
 
 ## Install
 
-Clone anywhere, then add to `~/.config/tmux/tmux.conf`:
+Clone anywhere, put the command on your `PATH`, then add to
+`~/.config/tmux/tmux.conf`:
+
+```sh
+ln -s "$PWD/bin/phalanx" ~/.local/bin/phalanx
+```
+
 
 ```tmux
 run-shell /path/to/phalanx/phalanx.tmux
@@ -54,6 +60,11 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx push <branch>` | push HEAD to a branch without checking it out |
 | `phalanx envs` | env branches configured for this repo |
 | `phalanx ls` | dashboard rows as TSV, for scripting |
+
+Nothing needs setting up per repo to get going: `cd` into one and run
+`phalanx new .` for a session on the current checkout, or `phalanx work <branch>`
+to get a worktree of its own. Only `ops` needs a repo config, since it has no way
+to guess which branches an environment deploys from.
 
 In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
 `ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`

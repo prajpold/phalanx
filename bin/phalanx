@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-PHALANX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve the symlink chain, so installing this as ~/.local/bin/phalanx still
+# finds lib/ next to the real script rather than next to the link.
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in
+    /*) self="$link" ;;
+    *)  self="$(cd "$(dirname "$self")" && pwd)/$link" ;;
+  esac
+done
+PHALANX_ROOT="$(cd "$(dirname "$self")/.." && pwd)"
 export PHALANX_ROOT
 
 . "$PHALANX_ROOT/lib/git.sh"
