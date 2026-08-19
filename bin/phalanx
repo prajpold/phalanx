@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+PHALANX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PHALANX_ROOT
+
+. "$PHALANX_ROOT/lib/git.sh"
+. "$PHALANX_ROOT/lib/agents.sh"
+. "$PHALANX_ROOT/lib/session.sh"
+. "$PHALANX_ROOT/lib/ui.sh"
+
+usage() {
+  cat <<'EOF'
+phalanx — tmux session manager for coding agents
+
+  phalanx [pick]              agent dashboard (fzf)
+  phalanx new [path] [layout] session for a directory
+  phalanx work <branch>       worktree + session for a branch
+  phalanx ops <branch>        terminal-only session for merges and rebases
+  phalanx push <branch>       push HEAD to a branch without checking it out
+  phalanx envs                env branches configured for this repo
+  phalanx ls                  dashboard rows as TSV
+
+env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos)
+EOF
+}
+
+for tool in tmux jq fzf git; do
+  command -v "$tool" >/dev/null || { printf 'phalanx: %s is required\n' "$tool" >&2; exit 1; }
+done
+
+command="${1:-pick}"
+[ $# -gt 0 ] && shift
+
+case "$command" in
+  pick)            phalanx_pick "$@" ;;
+  new)             phalanx_new "$@" ;;
+  work)            phalanx_work "$@" ;;
+  ops)             phalanx_ops "$@" ;;
+  push)            phalanx_push "$@" ;;
+  envs)            phalanx_envs "$@" ;;
+  ls)              phalanx_rows ;;
+  -h|--help|help)  usage ;;
+  *)               usage >&2; exit 1 ;;
+esac

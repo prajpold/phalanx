@@ -1,0 +1,126 @@
+# phalanx
+
+A tmux session manager for coding agents. One session per task, one window per
+role, and a dashboard that reads each agent's own reported state.
+
+## How it works
+
+`claude agents --json` reports every running agent with its state, pid and cwd,
+so there is no daemon, no hooks and no PTY scraping. phalanx joins that output
+to tmux panes over the controlling tty — `pane_pid` is the shell and the agent
+is its child, so the tty is the only reliable key.
+
+Last-activity age comes from the transcript mtime under
+`~/.claude/projects/<slug>/<sessionId>.jsonl`, because `startedAt` is the
+session start rather than the last turn.
+
+Session metadata (role, branch, repo) lives in tmux user options on the session
+itself, so there is no state file to keep in sync.
+
+## Install
+
+Clone anywhere, then add to `~/.config/tmux/tmux.conf`:
+
+```tmux
+run-shell /path/to/phalanx/phalanx.tmux
+```
+
+`prefix + g` opens the dashboard in a popup. Rebind with
+`set -g @phalanx-key G`.
+
+Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
+
+## Usage
+
+| command | what it does |
+| --- | --- |
+| `phalanx` | dashboard: attach, create, kill |
+| `phalanx new [path] [layout]` | session for a directory |
+| `phalanx work <branch>` | worktree + session for a branch |
+| `phalanx ops <branch>` | terminal-only session for merges and rebases |
+| `phalanx push <branch>` | push HEAD to a branch without checking it out |
+| `phalanx envs` | env branches configured for this repo |
+| `phalanx ls` | dashboard rows as TSV, for scripting |
+
+In the dashboard: `enter` attaches, `ctrl-b` opens a work session on a branch,
+`ctrl-o` opens an ops session, `ctrl-n` creates a session from a path, `ctrl-x`
+kills a session, `ctrl-r` reloads. The preview shows the tail of the selected
+pane.
+
+## One branch, one worktree, one session
+
+Git refuses to check out a branch that another worktree already holds, so
+switching branches inside a session breaks down as soon as you run several
+sessions against one repo. phalanx inverts it: a branch gets a worktree under
+`$PHALANX_HOME/worktrees/<repo>/<branch>` and a session named `<repo>/<branch>`.
+Changing branch means changing session, and the conflict cannot arise.
+
+`phalanx work` reuses an existing worktree if the branch already has one, so
+running it twice for the same branch lands you in the same session.
+
+### Environment branches
+
+Branches that a test environment deploys from are shared, so they need care. A
+refspec push does not touch your index and works from every worktree at once,
+even while another worktree holds that branch:
+
+```sh
+git push origin HEAD:refs/heads/staging
+```
+
+That last part is the trap: the push succeeds, but the worktree holding the
+branch is now silently behind the remote. So `phalanx push` refuses when any
+worktree holds the target branch and points you at the ops session instead.
+
+`--force-with-lease` is rejected with `stale info` unless you fetched first, and
+once you do fetch it overwrites whatever was pushed in the meantime. phalanx
+fetches and then pushes without force, so a push that would clobber somebody
+else fails loudly.
+
+### Ops sessions
+
+An ops session is a terminal-only session — no editor, no agent — that owns the
+checkout of a shared branch and exists for merges, rebases and realigning an
+environment with the mainline. Because it is the single worktree holding that
+branch, there is exactly one writer and nothing diverges.
+
+List the shared branches in the repo config and they show up under `ctrl-o`.
+
+## Layouts
+
+A layout is `window-name<TAB>command` per line. An empty command leaves a shell.
+
+```
+editor	nvim
+agent	claude
+shell
+```
+
+Lookup order: `<path>/.phalanx`, `~/.config/phalanx/layouts/<name>`, then
+`layouts/<name>` here. Commands are sent with `send-keys` rather than run as the
+window command, so quitting nvim or claude leaves a shell instead of closing the
+window.
+
+## Repo config
+
+Per repo, in `<repo>/.phalanx.conf` or `~/.config/phalanx/repos/<repo>`. See
+`examples/repo.conf`.
+
+```
+env	staging
+link	.env
+copy	.tool-versions
+postcreate	npm ci
+```
+
+`env` marks a shared branch. `link` symlinks a path from the main worktree into
+each new one, `copy` copies it, and `postcreate` runs a command in the new
+worktree. Untracked files do not follow a `git worktree add`, and that — not the
+branch bookkeeping — is what usually makes worktrees unpleasant.
+
+## Agent state
+
+Background agents report `state` while interactive ones report `status`, two
+field names for the same idea. Background agents have no pid and live inside a
+parent session, so they cannot be attached to directly. tmux sessions with no
+agent still appear, which is how ops sessions stay visible.
