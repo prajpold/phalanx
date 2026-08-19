@@ -64,6 +64,6 @@ phalanx_rows() {
       tmux list-sessions -F '#{session_path}' 2>/dev/null || true
     } | sort -u | _phalanx_branches
     printf '%s\n' "$agents"
-  } | awk -F"$tab" -v OFS="$tab" -v now="$(date +%s)" -f "$PHALANX_ROOT/lib/rows.awk" \
+  } | awk -F"$tab" -v OFS="$tab" -v now="$(date +%s)" -v compact="${PHALANX_COMPACT:-}" -f "$PHALANX_ROOT/lib/rows.awk" \
     | sort -t"$tab" -k7,7 -k6,6 -k3,3
 }

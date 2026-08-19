@@ -55,8 +55,20 @@ _phalanx_branch_interactive() {
   fi
 }
 
+_phalanx_columns() {
+  if [ -n "${PHALANX_COMPACT:-}" ]; then
+    printf '     age  cat  %-30s agent\n' 'repo/branch'
+  else
+    printf '   state       age  %-20s %-22s %-11s agent\n' repo branch category
+  fi
+}
+
 phalanx_pick() {
   local rows out key line target kind cwd root
+
+  case "$(tmux show-option -gqv @phalanx-compact)" in
+    on|1|yes) PHALANX_COMPACT=1; export PHALANX_COMPACT ;;
+  esac
 
   rows="$(phalanx_rows)"
   if [ -z "$(printf '%s' "$rows" | tr -d '[:space:]')" ]; then
@@ -68,7 +80,7 @@ phalanx_pick() {
     printf '%s\n' "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=5 \
       --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
       --color='fg:-1,bg:-1,fg+:-1,bg+:-1,hl:cyan,hl+:cyan:bold,pointer:cyan,prompt:cyan,info:dim,header:dim,footer:dim,footer-border:dim,border:dim,spinner:cyan' \
-      --header='   state       age  repo                 branch                 category    agent' \
+      --header="$(_phalanx_columns)" \
       --footer='enter attach · ctrl-b work · ctrl-o ops · ctrl-n new · ctrl-x kill · ctrl-r reload' \
       --footer-border=line \
       --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-o \

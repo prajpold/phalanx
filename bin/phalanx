@@ -29,7 +29,7 @@ phalanx — tmux session manager for coding agents
   phalanx new [path] [layout] session for a directory
   phalanx work <branch>       worktree + session for a branch
   phalanx ops <branch>        terminal-only session for merges and rebases
-  phalanx ls                  dashboard rows as TSV
+  phalanx ls [-c]             dashboard rows as TSV, -c for narrow terminals
   phalanx --version           print the version
 
 env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos)
@@ -42,6 +42,10 @@ done
 
 command="${1:-pick}"
 [ $# -gt 0 ] && shift
+
+case "${1:-}" in
+  -c|--compact) PHALANX_COMPACT=1; export PHALANX_COMPACT; shift ;;
+esac
 
 case "$command" in
   pick)            phalanx_require_tty || exit 1; phalanx_pick "$@" ;;

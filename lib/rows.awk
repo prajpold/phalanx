@@ -27,6 +27,14 @@ function category(kind, role, target) {
   return "phalanx"
 }
 
+function short_category(cat) {
+  if (cat == "background") return "bg"
+  if (cat == "detached") return "det"
+  if (cat == "external") return "ext"
+  if (cat == "phalanx") return "phx"
+  return cat
+}
+
 function ago(ts,   d) {
   if (ts == "") return "-"
   d = now - ts
@@ -35,6 +43,10 @@ function ago(ts,   d) {
   if (d < 3600) return int(d / 60) "m"
   if (d < 86400) return int(d / 3600) "h"
   return int(d / 86400) "d"
+}
+
+function trunc(s, w) {
+  return (length(s) <= w) ? s : substr(s, 1, w)
 }
 
 function fit(s, w) {
@@ -48,7 +60,7 @@ function basename(p,   n, a) {
 }
 
 function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
-              cat, group, gutter, state, age, disp) {
+              cat, group, gutter, state, age, ident, disp) {
   if (repo == "") repo = basename(cwd)
   if (br == "" && cwd in gitbranch) br = gitbranch[cwd]
   if (br == "") br = "-"
@@ -67,12 +79,27 @@ function emit(target, sid, cwd, kind, status, repo, br, role, agent, started,
   # No transcript yet means no turn yet, so fall back to when the agent started.
   if (age == "-" && started != "") age = ago(int(started / 1000))
 
-  disp = sprintf("%s%s %4s  %s %s %s %s",
-                 gutter, state, age,
-                 paint(fit(repo, 20), "1"),
-                 paint(fit(br, 22), "36"),
-                 paint(sprintf("%-11s", cat), "2"),
-                 paint(agent, "2"))
+  if (compact) {
+    ident = (br == "-") ? trunc(repo, 30) : trunc(repo, 16) "/" trunc(br, 13)
+    disp = sprintf("%s%s %4s  %s %s %s",
+                   gutter,
+                   paint(icon(status), status_color(status)),
+                   age,
+                   paint(sprintf("%-4s", short_category(cat)), "2"),
+                   paint(sprintf("%-30s", ident), "1"),
+                   paint(trunc(agent, 35), "2"))
+    print target, sid, cwd, kind, disp, repo, group
+    return
+  }
+
+  {
+    disp = sprintf("%s%s %4s  %s %s %s %s",
+                   gutter, state, age,
+                   paint(fit(repo, 20), "1"),
+                   paint(fit(br, 22), "36"),
+                   paint(sprintf("%-11s", cat), "2"),
+                   paint(agent, "2"))
+  }
 
   print target, sid, cwd, kind, disp, repo, group
 }

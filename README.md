@@ -57,7 +57,7 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | `phalanx new [path] [layout]` | session for a directory |
 | `phalanx work <branch>` | worktree + session for a branch |
 | `phalanx ops <branch>` | terminal-only session for merges and rebases |
-| `phalanx ls` | dashboard rows as TSV, for scripting |
+| `phalanx ls [-c]` | dashboard rows as TSV, for scripting |
 | `phalanx --version` | print the version |
 
 Nothing needs setting up per repo to get going: `cd` into one and run
@@ -77,6 +77,10 @@ A cyan bar in the left gutter marks what phalanx manages. It comes from the
 grew on its own — a hand-rolled tmux session, an agent started outside phalanx —
 has no bar and reads `external`, `background` or `detached` in the category
 column.
+
+`-c` gives a narrower row for a laptop screen: the status word drops to its icon,
+repo and branch share one column, the category shrinks to three letters and the
+agent name is cut. Set `@phalanx-compact on` to get the same in the popup.
 
 Age is time since the agent's last turn, from the transcript mtime. An agent that
 has not taken a turn yet has no transcript, so it falls back to how long ago it
