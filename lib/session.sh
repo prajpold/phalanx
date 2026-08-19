@@ -1,11 +1,18 @@
+# switch-client works inside display-popup, where TMUX is set but TMUX_PANE is
+# not, so probe it rather than deciding from the environment.
 _phalanx_goto() {
   local target="$1" session="${1%%:*}"
   tmux select-window -t "$target" 2>/dev/null || true
-  if [ -n "${TMUX:-}" ]; then
-    tmux switch-client -t "$target"
-  else
-    tmux attach-session -t "=$session"
+
+  if tmux switch-client -t "$target" 2>/dev/null; then
+    return 0
   fi
+  if tmux attach-session -t "=$session" 2>/dev/null; then
+    return 0
+  fi
+
+  printf 'phalanx: could not attach to %s\n' "$target" >&2
+  return 1
 }
 
 _phalanx_sanitize() {

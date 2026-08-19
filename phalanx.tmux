@@ -12,7 +12,7 @@ bind_popup() {
   [ "$key" = none ] && return 0
   # -d keeps the popup in the current pane's directory, which is how the git
   # commands find the repo to act on.
-  tmux bind-key "$key" display-popup -E -d '#{pane_current_path}' \
+  tmux bind-key "$key" display-popup -EE -d '#{pane_current_path}' \
     -w "$(option @phalanx-width 90%)" -h "$(option @phalanx-height 80%)" \
     "$PHALANX_DIR/bin/phalanx $command"
 }

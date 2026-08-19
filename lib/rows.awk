@@ -30,10 +30,16 @@ function basename(p,   n, a) {
   return n ? a[n] : p
 }
 
-function emit(target, sid, cwd, kind, status, name, repo, br,   st, disp) {
+function emit(target, sid, cwd, kind, status, name, repo, br,   st, where, disp) {
   if (repo == "") repo = basename(cwd)
   st = color(status) sprintf("%s %-8s", icon(status), status) "\033[0m"
-  disp = sprintf("%s %4s  %-18s %-22s %s", st, ago(mtime[sid]), repo, (br == "" ? "-" : br), name)
+
+  where = target
+  if (where == "") where = (kind == "background") ? "no pane (bg)" : "no pane"
+
+  disp = sprintf("%s %4s  %-16s %-16s %-22s %s",
+                 st, ago(mtime[sid]), repo, (br == "" ? "-" : br), where, name)
+  if (target == "") disp = "\033[2m" disp "\033[0m"
   print target, sid, cwd, kind, disp, repo
 }
 

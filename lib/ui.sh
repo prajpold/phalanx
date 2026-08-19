@@ -95,7 +95,7 @@ phalanx_pick() {
   esac
 
   if [ -z "$target" ]; then
-    printf 'phalanx: %s agent has no pane to attach to\n' "$kind" >&2
+    printf 'phalanx: this %s agent is not running in a tmux pane, nothing to attach to\n' "$kind" >&2
     return 1
   fi
 
