@@ -24,5 +24,5 @@ bind_popup() {
 }
 
 bind_popup "$(option @phalanx-key g)" pick
-bind_popup "$(option @phalanx-work-key b)" work
-bind_popup "$(option @phalanx-bare-key e)" bare
+bind_popup "$(option @phalanx-worktree-key b)" 'new --worktree'
+bind_popup "$(option @phalanx-main-key e)" new

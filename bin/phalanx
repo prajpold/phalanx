@@ -14,7 +14,7 @@ done
 PHALANX_ROOT="$(cd "$(dirname "$self")/.." && pwd)"
 export PHALANX_ROOT
 
-PHALANX_VERSION=0.1.0
+PHALANX_VERSION=0.2.0
 
 . "$PHALANX_ROOT/lib/git.sh"
 . "$PHALANX_ROOT/lib/agents.sh"
@@ -27,16 +27,14 @@ usage() {
 phalanx — tmux session manager for coding agents
 
   phalanx [pick]              agent dashboard (fzf)
-  phalanx new [path] [layout] session for a directory
-  phalanx work <branch> [layout]
-                              worktree + session for a branch
-  phalanx bare <branch>       same, with a layout that runs no agent, for
-                              whatever you would rather do on the branch yourself
-  phalanx rm <branch>         drop the session and its worktree, keeping the branch
-  phalanx archive <branch>    stash what is uncommitted, then drop it the same way
+  phalanx new [name]          session in this repo's checkout
+      --worktree [branch]     give it a worktree of its own instead
+      --layout <layout>       which windows to open
+  phalanx rm <name>           drop the session and its worktree
+  phalanx archive <name>      stash what is uncommitted, then drop it
   phalanx archived            what has been archived in this repo
-  phalanx restore <branch>    bring back a worktree, and its stash if there is one
-  phalanx prune               drop worktrees of branches already merged
+  phalanx restore <name>      bring a worktree back, and its stash if any
+  phalanx prune               drop worktrees whose session is gone
   phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
 
@@ -61,12 +59,36 @@ while [ $# -gt 0 ]; do
 done
 
 case "$command" in
-  pick)            phalanx_require_tty || exit 1; phalanx_pick "$@" ;;
-  new)             phalanx_new "$@" ;;
-  work)            if [ $# -gt 0 ]; then phalanx_work "$1" "${2:-}" "$PWD"
-                   else phalanx_require_tty || exit 1; phalanx_work_interactive; fi ;;
-  bare)            if [ $# -gt 0 ]; then phalanx_bare "$1" "$PWD"
-                   else phalanx_require_tty || exit 1; phalanx_bare_interactive; fi ;;
+  pick)
+    phalanx_require_tty || exit 1
+    phalanx_pick
+    ;;
+  new)
+    name=""; worktree=""; branch=""; layout=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --worktree)
+          worktree=1; shift
+          case "${1:-}" in ''|--*) ;; *) branch="$1"; shift ;; esac
+          ;;
+        --layout)
+          [ $# -ge 2 ] || { printf 'phalanx: --layout needs a name\n' >&2; exit 1; }
+          layout="$2"; shift 2
+          ;;
+        -*) usage >&2; exit 1 ;;
+        *)
+          [ -z "$name" ] || { usage >&2; exit 1; }
+          name="$1"; shift
+          ;;
+      esac
+    done
+    if [ -n "$name" ]; then
+      phalanx_session "$name" "$worktree" "$branch" "$layout" "$PWD"
+    else
+      phalanx_require_tty || exit 1
+      if [ -n "$worktree" ]; then phalanx_worktree_interactive; else phalanx_main_interactive; fi
+    fi
+    ;;
   rm)              phalanx_rm "$@" ;;
   archive)         phalanx_archive "$@" ;;
   archived)        phalanx_archived ;;

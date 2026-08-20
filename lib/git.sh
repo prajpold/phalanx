@@ -12,10 +12,6 @@ _phalanx_worktree_holding() {
     | awk -v want="branch refs/heads/$2" '/^worktree /{ w=$2 } $0==want { print w; exit }'
 }
 
-_phalanx_worktree_path() {
-  printf '%s/worktrees/%s/%s\n' "$PHALANX_HOME" "$1" "$2"
-}
-
 _phalanx_repo_config() {
   local root="$1" config="${XDG_CONFIG_HOME:-$HOME/.config}/phalanx/repos/$(basename "$1")"
   if [ -f "$root/.phalanx.conf" ]; then
@@ -60,81 +56,4 @@ _phalanx_provision() {
     printf 'phalanx: postcreate: %s\n' "$item" >&2
     (cd "$dest" && eval "$item") >&2
   done
-}
-
-_phalanx_default_branch() {
-  local root="$1" ref candidate
-  ref="$(git -C "$root" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"
-  if [ -n "$ref" ]; then
-    printf '%s\n' "${ref#origin/}"
-    return
-  fi
-  for candidate in main master; do
-    if git -C "$root" show-ref --verify --quiet "refs/heads/$candidate"; then
-      printf '%s\n' "$candidate"
-      return
-    fi
-  done
-}
-
-# The main worktree holds the default branch and worktrees hold everything else.
-# Letting the main one drift off the default branch locks that branch out of a
-# worktree of its own, and git then refuses to create one.
-_phalanx_ensure_worktree() {
-  local root="$1" branch="$2" existing default dest
-
-  existing="$(_phalanx_worktree_holding "$root" "$branch")"
-  default="$(_phalanx_default_branch "$root")"
-
-  if [ "$branch" = "$default" ]; then
-    if [ "$existing" = "$root" ]; then
-      printf '%s\n' "$root"
-      return
-    fi
-    printf 'phalanx: %s belongs in the main worktree\n' "$branch" >&2
-    printf 'phalanx:   %s\n' "$root" >&2
-    printf 'phalanx: it is on %s instead, so put it back first:\n' \
-      "$(git -C "$root" branch --show-current 2>/dev/null)" >&2
-    printf 'phalanx:   git -C %s switch %s\n' "$root" "$branch" >&2
-    return 1
-  fi
-
-  if [ "$existing" = "$root" ]; then
-    printf 'phalanx: %s is checked out in the main worktree\n' "$branch" >&2
-    printf 'phalanx:   %s\n' "$root" >&2
-    printf 'phalanx: put that back on %s first, then try again:\n' "$default" >&2
-    printf 'phalanx:   git -C %s switch %s\n' "$root" "$default" >&2
-    return 1
-  fi
-
-  if [ -n "$existing" ]; then
-    printf '%s\n' "$existing"
-    return
-  fi
-
-  dest="$(_phalanx_worktree_path "$(basename "$root")" "$branch")"
-
-  # The directory outliving its branch means somebody switched inside it, and
-  # git's own message for that is only "already exists".
-  if [ -e "$dest" ]; then
-    printf 'phalanx: %s exists but no longer holds %s\n' "$dest" "$branch" >&2
-    printf 'phalanx: it is on %s, so switch it back or drop it:\n' \
-      "$(git -C "$dest" branch --show-current 2>/dev/null || echo 'an unknown branch')" >&2
-    printf 'phalanx:   git -C %s switch %s\n' "$dest" "$branch" >&2
-    printf 'phalanx:   phalanx rm %s\n' "$(git -C "$dest" branch --show-current 2>/dev/null)" >&2
-    return 1
-  fi
-
-  mkdir -p "$(dirname "$dest")"
-
-  if git -C "$root" show-ref --verify --quiet "refs/heads/$branch"; then
-    git -C "$root" worktree add "$dest" "$branch" >/dev/null || return 1
-  elif git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-    git -C "$root" worktree add --track -b "$branch" "$dest" "origin/$branch" >/dev/null || return 1
-  else
-    git -C "$root" worktree add -b "$branch" "$dest" >/dev/null || return 1
-  fi
-
-  _phalanx_provision "$root" "$dest"
-  printf '%s\n' "$dest"
 }
