@@ -22,16 +22,35 @@ worktree has to show up.
 
 ## Install
 
-Clone anywhere, put the command on your `PATH`, then add to
-`~/.config/tmux/tmux.conf`:
+```sh
+curl -fsSL https://raw.githubusercontent.com/prajpold/phalanx/master/install.sh | bash
+```
+
+That takes the newest tag, keeps its own clone under `~/.local/share/phalanx`,
+links `bin/phalanx` into `~/.local/bin`, puts that directory on your `PATH` and
+binds the popup keys in your tmux config — reloading a running server, so they
+work without reattaching. Pass a version to pin one, or a branch to track its
+tip:
 
 ```sh
-ln -s "$PWD/bin/phalanx" ~/.local/bin/phalanx
+curl -fsSL https://raw.githubusercontent.com/prajpold/phalanx/master/install.sh | bash -s -- v0.2.0
 ```
 
-```tmux
-run-shell /path/to/phalanx/phalanx.tmux
-```
+It writes to `~/.zshrc`, `~/.bash_profile` or `~/.config/fish/config.fish`
+depending on `$SHELL`, and to whichever of `~/.config/tmux/tmux.conf` or
+`~/.tmux.conf` you already have. Both edits go in a block between
+`# phalanx begin` and `# phalanx end` that it rewrites in place, so installing
+twice leaves one entry and moving `PHALANX_PREFIX` does not strand the old path.
+A `run-shell` you wrote yourself is left alone rather than doubled up, and
+`--no-path` and `--no-tmux` skip either edit and print what to add yourself.
+
+Rerun `~/.local/share/phalanx/install.sh` to update — it is the same script, and
+the clone it made is the one it installs from. `PHALANX_PREFIX` and
+`PHALANX_BIN_DIR` move where it puts things, and `PHALANX_REPO` where it pulls
+from.
+
+Needs `tmux`, `jq`, `fzf` and `git` on your `PATH`; the installer names the ones
+you are missing.
 
 | bind | opens |
 | --- | --- |
@@ -190,6 +209,14 @@ not running stays visible.
 dispatcher only calls functions that exist, that awk and fzf accept what the code
 builds, and that nothing in `lib` ever passes `--force` to a worktree removal or
 deletes a branch.
+
+`tests/e2e` drives the whole lifecycle — create, archive, restore, remove, prune
+— against a tmux server, a `PHALANX_HOME` and a git repo of its own, so a run
+cannot see or kill anything you are working in.
+
+```sh
+tests/smoke && tests/e2e
+```
 
 ## License
 

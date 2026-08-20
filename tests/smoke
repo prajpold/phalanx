@@ -19,7 +19,8 @@ check() {
   fi
 }
 
-for file in "$PHALANX_ROOT"/lib/*.sh "$PHALANX_ROOT/bin/phalanx" "$PHALANX_ROOT/phalanx.tmux"; do
+for file in "$PHALANX_ROOT"/lib/*.sh "$PHALANX_ROOT/bin/phalanx" "$PHALANX_ROOT/phalanx.tmux" \
+  "$PHALANX_ROOT/install.sh"; do
   check "parses: ${file#$PHALANX_ROOT/}" bash -n "$file"
 done
 check 'parses: lib/rows.awk' awk -f "$PHALANX_ROOT/lib/rows.awk" /dev/null

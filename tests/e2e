@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Drives the whole session lifecycle against a tmux server and a git repo of its
+# own, so a run cannot see, name or kill anything you are actually working in.
+set -uo pipefail
+
+PHALANX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PHALANX_ROOT
+failed=0
+
+W="$(mktemp -d)"
+# Short, because a tmux socket is a unix path and those are capped near 104
+# characters — a mktemp dir under TMPDIR already spends most of that.
+SOCKET_DIR="$(mktemp -d /tmp/phalanx-e2e.XXXXXX)"
+trap 'env -u TMUX tmux kill-server >/dev/null 2>&1; rm -rf "$W" "$SOCKET_DIR"' EXIT
+
+export TMUX_TMPDIR="$SOCKET_DIR"
+export PHALANX_HOME="$W/home"
+export XDG_CONFIG_HOME="$W/config"
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+unset TMUX
+
+px() { env -u TMUX "$PHALANX_ROOT/bin/phalanx" "$@" </dev/null; }
+tm() { env -u TMUX tmux "$@" </dev/null; }
+gone() { ! tm has-session -t "=$1" >/dev/null 2>&1; }
+
+check() {
+  local label="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    printf 'ok    %s\n' "$label"
+  else
+    printf 'FAIL  %s\n' "$label"
+    failed=$((failed + 1))
+  fi
+}
+
+mkdir -p "$W/repo"
+git init --quiet -b main "$W/repo"
+git -C "$W/repo" config user.email e2e@example.invalid
+git -C "$W/repo" config user.name e2e
+printf 'hello\n' > "$W/repo/file"
+git -C "$W/repo" add file
+git -C "$W/repo" commit --quiet -m first >/dev/null 2>&1
+cd "$W/repo" || exit 1
+
+wt="$PHALANX_HOME/worktrees/repo"
+
+px new t1 --worktree --layout bare >/dev/null 2>&1
+check 'new --worktree: session exists' tm has-session -t '=repo/t1'
+check 'new --worktree: worktree exists' test -d "$wt/t1"
+check 'new --worktree: branch named after the session' \
+  test "$(git -C "$wt/t1" branch --show-current)" = t1
+check 'new --worktree: a window per layout line' \
+  test "$(tm list-windows -t '=repo/t1' | wc -l | tr -d ' ')" -eq 2
+check 'new --worktree: location recorded on the session' \
+  test "$(tm show-option -qv -t repo/t1 @phalanx-location)" = worktree
+
+px new t2 --worktree --branch feature/x --layout bare >/dev/null 2>&1
+check '--branch: worktree starts on the branch asked for' \
+  test "$(git -C "$wt/t2" branch --show-current)" = feature/x
+
+# Counted by name, not by line: the dashboard joins in every agent on the
+# machine, so a row count here would depend on what else is running.
+rows="$(px ls --tsv | cut -f1)"
+check 'ls --tsv: lists t1' test -n "$(printf '%s\n' "$rows" | grep '^repo/t1:')"
+check 'ls --tsv: lists t2' test -n "$(printf '%s\n' "$rows" | grep '^repo/t2:')"
+
+px new t1 --worktree --layout bare >/dev/null 2>&1
+check 'new twice: still one session for t1' \
+  test "$(tm list-sessions -F '#{session_name}' | grep -c '^repo/t1$')" -eq 1
+
+printf 'dirty\n' > "$wt/t1/scratch"
+px rm t1 >/dev/null 2>&1
+check 'rm: refuses a worktree with uncommitted work' test -d "$wt/t1"
+check 'rm: leaves the session alone when it refuses' tm has-session -t '=repo/t1'
+
+px archive t1 >/dev/null 2>&1
+check 'archive: worktree removed' test ! -d "$wt/t1"
+check 'archive: session killed' gone repo/t1
+check 'archive: stash carries the session tag' \
+  test -n "$(git -C "$W/repo" stash list | grep 'phalanx:t1@t1')"
+check 'archive: branch recorded' \
+  test "$(git -C "$W/repo" config --get phalanx.t1.archived)" = t1
+check 'archived: lists t1' test -n "$(px archived | grep '^t1 ')"
+
+px restore t1 >/dev/null 2>&1
+check 'restore: worktree back' test -d "$wt/t1"
+check 'restore: back on the branch it was archived on' \
+  test "$(git -C "$wt/t1" branch --show-current)" = t1
+check 'restore: uncommitted work came back' test -f "$wt/t1/scratch"
+check 'restore: stash consumed' \
+  test -z "$(git -C "$W/repo" stash list | grep 'phalanx:t1@')"
+check 'restore: archive record cleared' \
+  test -z "$(git -C "$W/repo" config --get phalanx.t1.archived)"
+check 'restore: session running again' tm has-session -t '=repo/t1'
+
+px rm t2 >/dev/null 2>&1
+check 'rm: clean worktree removed' test ! -d "$wt/t2"
+check 'rm: worktree deregistered in git' \
+  test -z "$(git -C "$W/repo" worktree list --porcelain | grep "$wt/t2")"
+
+tm kill-session -t '=repo/t1' >/dev/null 2>&1
+rm -f "$wt/t1/scratch"
+printf 'y\n' | env -u TMUX "$PHALANX_ROOT/bin/phalanx" prune >/dev/null 2>&1
+check 'prune: drops the worktree whose session is gone' test ! -d "$wt/t1"
+
+check 'the main checkout is never touched' test -d "$W/repo/.git"
+
+printf '\n%s\n' "$([ "$failed" -eq 0 ] && echo 'all good' || echo "$failed failed")"
+exit "$failed"
