@@ -100,11 +100,11 @@ _phalanx_session_worktree() {
   printf '%s/worktrees/%s/%s\n' "$PHALANX_HOME" "$1" "$2"
 }
 
-# A worktree is named in its own right and the branch inside it is free to move,
-# which is the point when a session carries a stack of them.
+# The branch inside a worktree is free to move, which is the point when a session
+# carries a stack of them.
 _phalanx_add_worktree() {
-  local root="$1" repo="$2" worktree="$3" branch="${4:-$3}" dest
-  dest="$(_phalanx_session_worktree "$repo" "$worktree")"
+  local root="$1" repo="$2" name="$3" branch="${4:-$3}" dest
+  dest="$(_phalanx_session_worktree "$repo" "$name")"
 
   if [ -d "$dest" ]; then
     printf '%s\n' "$dest"
@@ -141,9 +141,9 @@ _phalanx_confirm_main() {
     'others without telling them.'
 }
 
-# worktree is the name of the worktree to run in, or empty to run in the repo's
-# main checkout. It is deliberately not the branch: the branch is whatever git has
-# checked out there, and it can change afterwards.
+# worktree is a flag: set to give the session a worktree of its own, named after
+# it, and empty to run in the repo's main checkout. The branch is deliberately not
+# part of that — it is whatever git has checked out there, and it can change.
 phalanx_session() {
   local name="$1" worktree="$2" branch="$3" layout="$4" cwd="${5:-$PWD}"
   local root repo dest location strict=""
@@ -157,7 +157,7 @@ phalanx_session() {
   repo="$(basename "$root")"
 
   if [ -n "$worktree" ]; then
-    dest="$(_phalanx_add_worktree "$root" "$repo" "$worktree" "$branch")" || return 1
+    dest="$(_phalanx_add_worktree "$root" "$repo" "$name" "$branch")" || return 1
     location=worktree
   else
     _phalanx_confirm_main "$root" || return 1

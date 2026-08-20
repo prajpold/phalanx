@@ -28,16 +28,16 @@ phalanx — tmux session manager for coding agents
 
   phalanx [pick]              agent dashboard (fzf)
   phalanx new [name]          session in this repo's checkout
-      --worktree [worktree]   run it in a worktree of its own, named after the
-                              session unless you name one; a worktree is not a
-                              branch and outlives any branch checked out in it
+      --worktree              run it in a worktree of its own, named after the
+                              session; the worktree outlives any branch checked
+                              out in it
       --branch <branch>       which branch that worktree starts on, a new one
-                              named after the worktree by default
+                              named after the session by default
       --layout <layout>       which windows to open
-  phalanx rm <worktree>       drop a worktree and any session running in it
-  phalanx archive <worktree>  stash what is uncommitted, then drop it
+  phalanx rm <name>           drop a session and its worktree
+  phalanx archive <name>      stash what is uncommitted, then drop it
   phalanx archived            what has been archived in this repo
-  phalanx restore <worktree>  bring a worktree back, and its stash if any
+  phalanx restore <name>      bring a session back, and its stash if any
   phalanx prune               drop worktrees whose session is gone
   phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
@@ -68,13 +68,10 @@ case "$command" in
     phalanx_pick
     ;;
   new)
-    name=""; worktree=""; worktree_name=""; branch=""; layout=""
+    name=""; worktree=""; branch=""; layout=""
     while [ $# -gt 0 ]; do
       case "$1" in
-        --worktree)
-          worktree=1; shift
-          case "${1:-}" in ''|-*) ;; *) worktree_name="$1"; shift ;; esac
-          ;;
+        --worktree) worktree=worktree; shift ;;
         --branch)
           [ $# -ge 2 ] || { printf 'phalanx: --branch needs a name\n' >&2; exit 1; }
           branch="$2"; shift 2
@@ -91,7 +88,6 @@ case "$command" in
       esac
     done
     if [ -n "$name" ]; then
-      [ -n "$worktree" ] && worktree="${worktree_name:-$name}"
       phalanx_session "$name" "$worktree" "$branch" "$layout" "$PWD"
     else
       phalanx_require_tty || exit 1

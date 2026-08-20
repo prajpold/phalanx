@@ -26,6 +26,14 @@ _phalanx_remove_worktree() {
   printf 'phalanx: removed worktree %s\n' "$worktree" >&2
 }
 
+_phalanx_forget_worktree() {
+  git -C "$1" config --remove-section "phalanx.$2" 2>/dev/null || true
+}
+
+_phalanx_archived_branch() {
+  git -C "$1" config --get "phalanx.$2.archived" 2>/dev/null
+}
+
 _phalanx_stash_entry() {
   git -C "$1" stash list --format='%gd%x09%gs' 2>/dev/null \
     | awk -F'\t' -v tag="phalanx:$2@" '
@@ -44,7 +52,7 @@ _phalanx_cleanup_context() {
 
 phalanx_rm() {
   local name="${1:-}" context root repo dest
-  [ -n "$name" ] || { printf 'usage: phalanx rm <worktree>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx rm <session>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
   dest="$(_phalanx_session_worktree "$repo" "$name")"
@@ -56,11 +64,12 @@ phalanx_rm() {
   fi
 
   _phalanx_drop_sessions_in "$dest"
+  _phalanx_forget_worktree "$root" "$name"
 }
 
 phalanx_archive() {
   local name="${1:-}" context root repo dest branch
-  [ -n "$name" ] || { printf 'usage: phalanx archive <worktree>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx archive <session>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
   dest="$(_phalanx_session_worktree "$repo" "$name")"
@@ -76,6 +85,10 @@ phalanx_archive() {
     printf 'phalanx: stashed the working tree as phalanx:%s@%s\n' "$name" "${branch:-HEAD}" >&2
   fi
 
+  # Recorded even with nothing to stash, so a clean worktree is still listed and
+  # still comes back on the branch it was on.
+  git -C "$root" config "phalanx.$name.archived" "${branch:-HEAD}"
+
   _phalanx_remove_worktree "$root" "$dest" || return 1
   _phalanx_drop_sessions_in "$dest"
 }
@@ -84,37 +97,38 @@ phalanx_archived() {
   local context root
   context="$(_phalanx_cleanup_context "${1:-$PWD}")" || return 1
   root="${context%%	*}"
-  git -C "$root" stash list --format='%gd%x09%gs%x09%cr' 2>/dev/null \
-    | awk -F'\t' '
-        { at = index($2, "phalanx:") }
-        at == 0 { next }
-        {
-          rest = substr($2, at + 8)
-          cut = index(rest, "@")
-          printf "%-12s %-22s %-22s %s\n", $1,
-                 (cut ? substr(rest, 1, cut - 1) : rest),
-                 (cut ? substr(rest, cut + 1) : "-"), $3
-        }'
+
+  printf '%-24s %-24s %s\n' session branch stash
+  git -C "$root" config --get-regexp '^phalanx\..*\.archived$' 2>/dev/null \
+    | while read -r key branch; do
+        name="${key#phalanx.}"
+        name="${name%.archived}"
+        stash="$(_phalanx_stash_entry "$root" "$name")"
+        printf '%-24s %-24s %s\n' "$name" "$branch" "${stash%%	*}"
+      done
 }
 
 phalanx_restore() {
   local name="${1:-}" context root repo entry ref branch dest
-  [ -n "$name" ] || { printf 'usage: phalanx restore <worktree>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx restore <session>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
 
   entry="$(_phalanx_stash_entry "$root" "$name")"
   ref="${entry%%	*}"
-  branch="${entry##*	}"
-  [ "$branch" = "HEAD" ] && branch=""
+
+  branch="$(_phalanx_archived_branch "$root" "$name")"
+  [ -n "$branch" ] || branch="${entry##*	}"
+  [ "$branch" = HEAD ] && branch=""
 
   dest="$(_phalanx_add_worktree "$root" "$repo" "$name" "$branch")" || return 1
   if [ -n "$ref" ]; then
     git -C "$dest" stash pop "$ref" || return 1
     printf 'phalanx: restored %s from %s\n' "$name" "$ref" >&2
   fi
+  git -C "$root" config --unset "phalanx.$name.archived" 2>/dev/null || true
 
-  phalanx_session "$name" "$name" "" "" "$root"
+  phalanx_session "$name" worktree "" "" "$root"
 }
 
 phalanx_prune() {

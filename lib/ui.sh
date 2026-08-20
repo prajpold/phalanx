@@ -158,7 +158,7 @@ _phalanx_session_interactive() {
         | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u \
         | _phalanx_fzf_pick 'branch > ' "empty starts a new branch called $name · esc goes back"
     )"
-    phalanx_session "$name" "$name" "$branch" "" "$root"
+    phalanx_session "$name" worktree "$branch" "" "$root"
   else
     phalanx_session "$name" "" "" "" "$root"
   fi

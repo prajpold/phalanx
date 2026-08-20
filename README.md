@@ -54,11 +54,11 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | --- | --- |
 | `phalanx` | the dashboard: attach, create, remove |
 | `phalanx new <name>` | session in this repo's checkout |
-| `phalanx new <name> --worktree [worktree]` | session with a worktree of its own |
-| `phalanx rm <worktree>` | drop a worktree and any session running in it |
-| `phalanx archive <worktree>` | stash what is uncommitted, then drop it |
+| `phalanx new <name> --worktree` | session with a worktree of its own |
+| `phalanx rm <name>` | drop a session and its worktree |
+| `phalanx archive <name>` | stash what is uncommitted, then drop it |
 | `phalanx archived` | what has been archived in this repo |
-| `phalanx restore <worktree>` | bring a worktree back, and its stash if any |
+| `phalanx restore <name>` | bring a session back, and its stash if any |
 | `phalanx prune` | drop worktrees whose session is gone |
 | `phalanx ls [-c]` | list sessions, `--tsv` for the machine-readable form |
 | `phalanx --version` | print the version |
@@ -85,10 +85,12 @@ matters because a session is not a branch: you might carry a stack of three
 through one of them.
 
 Where it runs is the one real choice. `--worktree` gives the session a checkout of
-its own under `$PHALANX_HOME/worktrees/<repo>/<worktree>`, named after the session
-unless you name one. A worktree is not a branch and outlives any branch checked
-out in it, which is why it has a name of its own and why `--branch` is a separate
-flag. Without `--worktree` the session runs in the repo's main checkout.
+its own under `$PHALANX_HOME/worktrees/<repo>/<name>`, named after the session, so
+the session name is the only handle you need for anything afterwards. A worktree
+is still not a branch — it outlives any branch checked out in it, which is why
+`--branch` is a separate flag and only says where to start.
+
+Without `--worktree` the session runs in the repo's main checkout.
 
 That second option comes with a hazard worth stating: two sessions in one
 checkout are two agents writing to the same working tree, and a branch switch in
@@ -115,10 +117,11 @@ untracked files — which covers the `.env` this tool linked in itself. phalanx
 never passes `--force` and never deletes a branch, so the refusal stands.
 
 When that refusal is in your way, `archive` stashes the working tree, untracked
-files included, tagged with the session name and the branch it was on. That tag
-is the whole record: `archived` reads it back out of `git stash list` and
-`restore` recreates the worktree on that branch and pops it. There is no second
-store to drift out of step with the repository.
+files included, tagged with the session name and the branch it was on. The branch
+also goes into the repository's own config, so a worktree with nothing to stash is
+still listed and still comes back on the branch it was on rather than a fresh one.
+`restore` recreates the worktree, pops the stash if there is one, and opens the
+session under the name it had.
 
 Prompts and confirmations are fzf, not bare terminal writes, so they carry the
 same frame and keys as the list. Where no terminal is attached they fall back to a
