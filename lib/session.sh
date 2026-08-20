@@ -100,11 +100,11 @@ _phalanx_session_worktree() {
   printf '%s/worktrees/%s/%s\n' "$PHALANX_HOME" "$1" "$2"
 }
 
-# A worktree belongs to the session, not to a branch, so the branch inside it is
-# free to move — which is the point when a session carries a stack of them.
+# A worktree is named in its own right and the branch inside it is free to move,
+# which is the point when a session carries a stack of them.
 _phalanx_add_worktree() {
-  local root="$1" repo="$2" name="$3" branch="${4:-$3}" dest
-  dest="$(_phalanx_session_worktree "$repo" "$name")"
+  local root="$1" repo="$2" worktree="$3" branch="${4:-$3}" dest
+  dest="$(_phalanx_session_worktree "$repo" "$worktree")"
 
   if [ -d "$dest" ]; then
     printf '%s\n' "$dest"
@@ -127,25 +127,23 @@ _phalanx_add_worktree() {
 # Two sessions in one checkout means two agents writing to the same working tree,
 # and a branch switch in either silently moves the other.
 _phalanx_confirm_main() {
-  local root="$1" existing reply
+  local root="$1" existing
   existing="$(
     tmux list-sessions -F '#{session_name}	#{@phalanx-location}	#{@phalanx-root}' 2>/dev/null \
       | awk -F'\t' -v want="$root" '$2 == "main" && $3 == want { print $1 }'
   )"
   [ -n "$existing" ] || return 0
 
-  printf 'phalanx: these already run in this checkout:\n' >&2
-  printf '%s\n' "$existing" | sed 's/^/  /' >&2
-  printf 'phalanx: they share one working tree, and a branch switch in one moves\n' >&2
-  printf 'phalanx: the others without telling them.\n' >&2
-  printf 'create it anyway? [y/N] ' >&2
-  read -r reply
-  case "$reply" in
-    y|Y) return 0 ;;
-    *) printf 'aborted\n' >&2; return 1 ;;
-  esac
+  _phalanx_confirm \
+    'Already running in this checkout:' \
+    "$(printf '%s\n' "$existing" | sed 's/^/  /')" \
+    'They share one working tree, and a branch switch in one moves the' \
+    'others without telling them.'
 }
 
+# worktree is the name of the worktree to run in, or empty to run in the repo's
+# main checkout. It is deliberately not the branch: the branch is whatever git has
+# checked out there, and it can change afterwards.
 phalanx_session() {
   local name="$1" worktree="$2" branch="$3" layout="$4" cwd="${5:-$PWD}"
   local root repo dest location strict=""
@@ -159,7 +157,7 @@ phalanx_session() {
   repo="$(basename "$root")"
 
   if [ -n "$worktree" ]; then
-    dest="$(_phalanx_add_worktree "$root" "$repo" "$name" "$branch")" || return 1
+    dest="$(_phalanx_add_worktree "$root" "$repo" "$worktree" "$branch")" || return 1
     location=worktree
   else
     _phalanx_confirm_main "$root" || return 1

@@ -56,9 +56,13 @@ function basename(p,   n, a) {
   return n ? a[n] : p
 }
 
-function emit(target, sid, cwd, kind, status, repo, location, agent, started, pid,
-              cat, group, gutter, state, age, branch, ident, disp) {
+function emit(target, sid, cwd, kind, status, repo, location, agent, started, pid, session, sessionid,
+              cat, group, gutter, state, age, branch, sname, ident, disp) {
   if (repo == "") repo = basename(cwd)
+
+  sname = session
+  if (sname == "") sname = "-"
+  else if (index(sname, repo "/") == 1) sname = substr(sname, length(repo) + 2)
   branch = (cwd in gitbranch) ? gitbranch[cwd] : ""
   if (branch == "") branch = "-"
 
@@ -71,32 +75,34 @@ function emit(target, sid, cwd, kind, status, repo, location, agent, started, pi
   if (age == "-" && started != "") age = ago(int(started / 1000))
 
   if (compact) {
-    ident = (branch == "-") ? trunc(repo, 30) : trunc(repo, 16) "/" trunc(branch, 13)
-    disp = sprintf("%s%s %4s  %s %s %s",
+    ident = (sname == "-") ? trunc(repo, 28) : trunc(repo, 14) "/" trunc(sname, 13)
+    disp = sprintf("%s%s %4s  %s %s %s %s",
                    gutter,
                    paint(icon(status), status_color(status)),
                    age,
                    paint(sprintf("%-4s", short_category(cat)), "2"),
-                   paint(sprintf("%-30s", ident), "1"),
-                   paint(trunc(agent, 35), "2"))
+                   paint(sprintf("%-28s", ident), "1"),
+                   paint(sprintf("%-10s", trunc(branch, 10)), "36"),
+                   paint(trunc(agent, 26), "2"))
   } else {
     if (group == 1)
       state = paint(sprintf("%s %-8s", icon(status), status), status_color(status))
     else
       state = paint(sprintf("%s %-8s", icon(status), ""), status_color(status))
 
-    disp = sprintf("%s%s %4s  %s %s %s %s",
+    disp = sprintf("%s%s %4s  %s %s %s %s %s",
                    gutter, state, age,
-                   paint(fit(repo, 18), "1"),
-                   paint(fit(branch, 20), "36"),
+                   paint(fit(repo, 20), "1"),
+                   paint(fit(sname, 20), "35"),
+                   paint(fit(branch, 14), "36"),
                    paint(sprintf("%-11s", cat), "2"),
-                   paint(agent, "2"))
+                   paint(trunc(agent, 28), "2"))
   }
 
-  print target, sid, cwd, kind, disp, repo, group, pid
+  print target, sid, cwd, kind, disp, repo, group, pid, sessionid
 }
 
-$1 == "PANE"   { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; next }
+$1 == "PANE"   { tty = $2; sub(/^\/dev\//, "", tty); pane[tty] = $3; paneid[tty] = $4; next }
 $1 == "PS"     { ttyof[$2] = $3; next }
 $1 == "MTIME"  { mtime[$2] = $3; next }
 $1 == "BRANCH" { gitbranch[$2] = $3; next }
@@ -107,6 +113,7 @@ $1 == "SESS" {
   loc[name] = $3
   repo[name] = $4
   path[name] = $5
+  sessid[name] = $6
   next
 }
 
@@ -127,14 +134,17 @@ END {
     sub(/:.*/, "", session)
     if (session != "") attached[session] = 1
 
+    sessionid = ""
+    if (apid[i] != "" && apid[i] in ttyof && ttyof[apid[i]] in paneid) sessionid = paneid[ttyof[apid[i]]]
+
     emit(target, asid[i], acwd[i], akind[i], astatus[i],
-         repo[session], loc[session], aname[i], astarted[i], apid[i])
+         repo[session], loc[session], aname[i], astarted[i], apid[i], session, sessionid)
   }
 
   for (i = 1; i <= sessions; i++) {
     name = order[i]
     if (name in attached) continue
     emit(name ":", "", path[name], "session", "shell",
-         repo[name], loc[name], "", "", "")
+         repo[name], loc[name], "", "", "", name, sessid[name])
   }
 }

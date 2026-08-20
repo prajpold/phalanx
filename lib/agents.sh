@@ -55,8 +55,8 @@ phalanx_rows() {
   local agents tab=$'\t'
   agents="$(_phalanx_agents_tsv)"
   {
-    tmux list-panes -a -F "PANE${tab}#{pane_tty}${tab}#{session_name}:#{window_index}.#{pane_index}" 2>/dev/null || true
-    tmux list-sessions -F "SESS${tab}#{session_name}${tab}#{@phalanx-location}${tab}#{@phalanx-repo}${tab}#{session_path}" 2>/dev/null || true
+    tmux list-panes -a -F "PANE${tab}#{pane_tty}${tab}#{session_name}:#{window_index}.#{pane_index}${tab}#{session_id}" 2>/dev/null || true
+    tmux list-sessions -F "SESS${tab}#{session_name}${tab}#{@phalanx-location}${tab}#{@phalanx-repo}${tab}#{session_path}${tab}#{session_id}" 2>/dev/null || true
     ps -eo pid=,tty= 2>/dev/null | awk -v OFS="$tab" '{ print "PS", $1, $2 }'
     printf '%s\n' "$agents" | _phalanx_mtimes
     {

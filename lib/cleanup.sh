@@ -1,6 +1,16 @@
-_phalanx_drop_session() {
-  tmux has-session -t "=$1" 2>/dev/null || return 0
-  tmux kill-session -t "=$1" && printf 'phalanx: killed session %s\n' "$1" >&2
+# Found by path rather than by name, because a session's name need not match the
+# worktree it runs in, and more than one can run in the same one.
+_phalanx_sessions_in() {
+  tmux list-sessions -F '#{session_name}	#{session_path}' 2>/dev/null \
+    | awk -F'\t' -v dir="$1" '$2 == dir || index($2, dir "/") == 1 { print $1 }'
+}
+
+_phalanx_drop_sessions_in() {
+  local session
+  _phalanx_sessions_in "$1" | while IFS= read -r session; do
+    [ -n "$session" ] || continue
+    tmux kill-session -t "=$session" && printf 'phalanx: killed session %s\n' "$session" >&2
+  done
 }
 
 # Never --force: git refuses a worktree holding modified or untracked files, and
@@ -34,7 +44,7 @@ _phalanx_cleanup_context() {
 
 phalanx_rm() {
   local name="${1:-}" context root repo dest
-  [ -n "$name" ] || { printf 'usage: phalanx rm <session>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx rm <worktree>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
   dest="$(_phalanx_session_worktree "$repo" "$name")"
@@ -45,12 +55,12 @@ phalanx_rm() {
     return 1
   fi
 
-  _phalanx_drop_session "$(_phalanx_session_name "$root" "$name")"
+  _phalanx_drop_sessions_in "$dest"
 }
 
 phalanx_archive() {
   local name="${1:-}" context root repo dest branch
-  [ -n "$name" ] || { printf 'usage: phalanx archive <session>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx archive <worktree>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
   dest="$(_phalanx_session_worktree "$repo" "$name")"
@@ -67,7 +77,7 @@ phalanx_archive() {
   fi
 
   _phalanx_remove_worktree "$root" "$dest" || return 1
-  _phalanx_drop_session "$(_phalanx_session_name "$root" "$name")"
+  _phalanx_drop_sessions_in "$dest"
 }
 
 phalanx_archived() {
@@ -89,7 +99,7 @@ phalanx_archived() {
 
 phalanx_restore() {
   local name="${1:-}" context root repo entry ref branch dest
-  [ -n "$name" ] || { printf 'usage: phalanx restore <session>\n' >&2; return 1; }
+  [ -n "$name" ] || { printf 'usage: phalanx restore <worktree>\n' >&2; return 1; }
   context="$(_phalanx_cleanup_context "${2:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
 
@@ -104,11 +114,11 @@ phalanx_restore() {
     printf 'phalanx: restored %s from %s\n' "$name" "$ref" >&2
   fi
 
-  phalanx_session "$name" worktree "" "" "$root"
+  phalanx_session "$name" "$name" "" "" "$root"
 }
 
 phalanx_prune() {
-  local context root repo base dest name candidates reply
+  local context root repo base dest name candidates
   context="$(_phalanx_cleanup_context "${1:-$PWD}")" || return 1
   root="${context%%	*}"; repo="${context##*	}"
   base="$PHALANX_HOME/worktrees/$repo"
@@ -118,7 +128,7 @@ phalanx_prune() {
     for dest in "$base"/*; do
       [ -d "$dest" ] || continue
       name="$(basename "$dest")"
-      tmux has-session -t "=$(_phalanx_session_name "$root" "$name")" 2>/dev/null && continue
+      [ -n "$(_phalanx_sessions_in "$dest")" ] && continue
       candidates="$candidates$name
 "
     done
@@ -129,14 +139,10 @@ phalanx_prune() {
     return 0
   fi
 
-  printf 'phalanx: worktrees with no session left:\n' >&2
-  printf '%s' "$candidates" | sed 's/^/  /' >&2
-  printf 'remove them? [y/N] ' >&2
-  read -r reply
-  case "$reply" in
-    y|Y) ;;
-    *) printf 'aborted\n' >&2; return 0 ;;
-  esac
+  _phalanx_confirm \
+    'Worktrees with no session left:' \
+    "$(printf '%s' "$candidates" | sed 's/^/  /')" \
+    || return 0
 
   printf '%s' "$candidates" | while IFS= read -r name; do
     [ -n "$name" ] || continue

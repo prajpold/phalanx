@@ -2,11 +2,84 @@
 # treating it as a finished action.
 PHALANX_BACK=2
 
+# Every prompt goes through fzf so it carries the same frame, colours and keys as
+# the list. Falls back to a plain read where no terminal is attached, which keeps
+# the command-line paths scriptable.
+_phalanx_menu() {
+  local prompt="$1" header="$2"
+  shift 2
+  printf '%s\n' "$@" \
+    | fzf --prompt="$prompt > " --header="$header" --header-first \
+          --layout=reverse --no-scrollbar --pointer='▌' --highlight-line \
+          --color="$(_phalanx_colors)" --footer-border=line \
+          --footer='enter picks · esc goes back' 2>/dev/null
+}
+
+_phalanx_interactive() {
+  [ -t 0 ] || [ -t 2 ]
+}
+
 _phalanx_notice() {
-  printf '%s\n' "$@" >&2
-  printf '\npress any key to go back ' >&2
-  read -r -n 1 _ 2>/dev/null || read -r _
-  printf '\n' >&2
+  if ! _phalanx_interactive; then
+    printf '%s\n' "$@" >&2
+    return 0
+  fi
+  _phalanx_menu back "$(printf '%s\n' "$@")" 'back to the list' >/dev/null
+}
+
+_phalanx_confirm() {
+  local reply
+  if ! _phalanx_interactive; then
+    printf '%s\n' "$@" >&2
+    printf 'continue? [y/N] ' >&2
+    read -r reply
+    case "$reply" in y|Y) return 0 ;; *) return 1 ;; esac
+  fi
+  [ "$(_phalanx_menu confirm "$(printf '%s\n' "$@")" no yes)" = yes ]
+}
+
+_phalanx_current_session_id() {
+  local id
+  id="$(tmux display-message -p '#{session_id}' 2>/dev/null)"
+  if [ -n "$id" ]; then
+    printf '%s\n' "$id"
+    return
+  fi
+  tmux list-clients -F '#{session_id}' 2>/dev/null | head -1
+}
+
+_phalanx_next_session_id() {
+  tmux list-sessions -F '#{session_activity} #{session_id}' 2>/dev/null \
+    | sort -rn | awk -v cur="$1" '$2 != cur { print $2; exit }'
+}
+
+# Killing the session you are attached to leaves the client with nowhere to go,
+# so move it first, and refuse when there is nowhere to move it to.
+_phalanx_leave_session() {
+  local id="$1" current next
+  current="$(_phalanx_current_session_id)"
+  [ -n "$id" ] && [ "$id" = "$current" ] || return 0
+
+  next="$(_phalanx_next_session_id "$id")"
+  if [ -z "$next" ]; then
+    _phalanx_notice \
+      'This is the session you are in, and the only one left.' \
+      'Removing it would drop you out of tmux, so it is left alone.' \
+      'Detach first, or remove it from outside.'
+    return 1
+  fi
+
+  _phalanx_confirm \
+    'This is the session you are in.' \
+    "You will be moved to $(tmux display-message -p -t "$next" '#{session_name}' 2>/dev/null) first." \
+    || return 1
+
+  tmux switch-client -t "$next"
+}
+
+_phalanx_kill_session_id() {
+  _phalanx_leave_session "$1" || return 1
+  tmux kill-session -t "$1"
 }
 
 _phalanx_highlight() {
@@ -23,9 +96,9 @@ _phalanx_colors() {
 
 _phalanx_columns() {
   if [ -n "${PHALANX_COMPACT:-}" ]; then
-    printf '     age  cat  %-30s agent\n' 'repo/branch'
+    printf '     age  cat  %-28s %-10s agent\n' 'repo/session' branch
   else
-    printf '   state       age  %-18s %-20s %-11s agent\n' repo branch category
+    printf '   state       age  %-20s %-20s %-14s %-11s agent\n' repo session branch category
   fi
 }
 
@@ -85,7 +158,7 @@ _phalanx_session_interactive() {
         | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u \
         | _phalanx_fzf_pick 'branch > ' "empty starts a new branch called $name · esc goes back"
     )"
-    phalanx_session "$name" worktree "$branch" "" "$root"
+    phalanx_session "$name" "$name" "$branch" "" "$root"
   else
     phalanx_session "$name" "" "" "" "$root"
   fi
@@ -176,7 +249,7 @@ phalanx_pick() {
         return "$status"
         ;;
       ctrl-x)
-        _phalanx_kill "$target" "$kind" "$pid" "$cwd"
+        _phalanx_kill "$target" "$kind" "$pid" "$cwd" "$(printf '%s' "$line" | cut -f9)"
         continue
         ;;
     esac
@@ -193,53 +266,49 @@ phalanx_pick() {
 }
 
 _phalanx_kill() {
-  local target="$1" kind="$2" pid="$3" cwd="$4" session="${1%%:*}" reply root name
+  local target="$1" kind="$2" pid="$3" cwd="$4" sessionid="$5"
+  local session="${1%%:*}" choice root name
 
   if [ -n "$target" ]; then
-    # The worktree is only phalanx's to remove if phalanx made it.
     case "$cwd" in
+      # The worktree is only phalanx's to remove if phalanx made it.
       "$PHALANX_HOME"/*)
         root="$(_phalanx_repo_root "$cwd" 2>/dev/null)"
-        name="${session#*/}"
-        if [ -n "$root" ] && [ "$name" != "$session" ]; then
-          printf '%s: [s]ession only, session and [w]orktree, [a]rchive then remove? [s/w/a/N] ' \
-            "$session" >&2
-          read -r reply
-          case "$reply" in
-            s|S) tmux kill-session -t "=$session" ;;
-            w|W) phalanx_rm "$name" "$root" ;;
-            a|A) phalanx_archive "$name" "$root" ;;
-            *)   printf 'aborted\n' >&2 ;;
+        name="$(basename "$cwd")"
+        if [ -n "$root" ]; then
+          choice="$(_phalanx_menu remove "$(printf '%s\n%s' "$session" "$cwd")" \
+            'session only' 'session and worktree' 'archive, then remove')"
+          case "$choice" in
+            'session only')         _phalanx_kill_session_id "$sessionid" ;;
+            'session and worktree') _phalanx_leave_session "$sessionid" && phalanx_rm "$name" "$root" ;;
+            'archive, then remove') _phalanx_leave_session "$sessionid" && phalanx_archive "$name" "$root" ;;
           esac
           return 0
         fi
         ;;
     esac
 
-    printf 'kill tmux session %s? [y/N] ' "$session" >&2
-    read -r reply
-    case "$reply" in
-      y|Y) tmux kill-session -t "=$session" ;;
-    esac
+    if _phalanx_confirm "Kill the tmux session $session?"; then
+      _phalanx_kill_session_id "$sessionid"
+    fi
     return 0
   fi
 
   if [ -n "$pid" ]; then
-    printf 'phalanx: this agent runs outside tmux, as pid %s\n' "$pid" >&2
-    printf 'terminate that process? [y/N] ' >&2
-    read -r reply
-    case "$reply" in
-      y|Y) kill "$pid" 2>/dev/null || printf 'phalanx: could not signal %s\n' "$pid" >&2 ;;
-    esac
+    if _phalanx_confirm \
+        "This agent runs outside tmux, as pid $pid." \
+        'Terminating it stops the agent.'; then
+      kill "$pid" 2>/dev/null || _phalanx_notice "Could not signal $pid."
+    fi
     return 0
   fi
 
   if [ "$kind" = background ]; then
     _phalanx_notice \
-      'phalanx: this background agent reports no pane and no process, so there is' \
-      'phalanx: nothing here to signal. Manage it from claude agents.'
+      'This background agent reports no pane and no process, so there is' \
+      'nothing here to signal. Manage it from claude agents.'
     return 0
   fi
 
-  _phalanx_notice 'phalanx: nothing on this row for phalanx to stop'
+  _phalanx_notice 'Nothing on this row for phalanx to stop.'
 }

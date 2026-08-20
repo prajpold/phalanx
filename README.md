@@ -54,16 +54,17 @@ Requires tmux >= 3.2, fzf, jq, git, Claude Code >= 2.1.139.
 | --- | --- |
 | `phalanx` | the dashboard: attach, create, remove |
 | `phalanx new <name>` | session in this repo's checkout |
-| `phalanx new <name> --worktree [branch]` | session with a worktree of its own |
-| `phalanx rm <name>` | drop the session and its worktree |
-| `phalanx archive <name>` | stash what is uncommitted, then drop it |
+| `phalanx new <name> --worktree [worktree]` | session with a worktree of its own |
+| `phalanx rm <worktree>` | drop a worktree and any session running in it |
+| `phalanx archive <worktree>` | stash what is uncommitted, then drop it |
 | `phalanx archived` | what has been archived in this repo |
-| `phalanx restore <name>` | bring a worktree back, and its stash if any |
+| `phalanx restore <worktree>` | bring a worktree back, and its stash if any |
 | `phalanx prune` | drop worktrees whose session is gone |
 | `phalanx ls [-c]` | list sessions, `--tsv` for the machine-readable form |
 | `phalanx --version` | print the version |
 
-`--layout <name>` picks the windows. Nothing needs configuring first.
+`--layout <name>` picks the windows and `--branch <branch>` says which branch a
+new worktree starts on. Nothing needs configuring first.
 
 In the dashboard: `enter` attaches, `ctrl-b` and `ctrl-e` create a session with
 or without a worktree, `ctrl-n` switches repo, `ctrl-x` removes, `ctrl-r`
@@ -83,10 +84,11 @@ A session is a name, a directory and a layout. The name is yours to pick, which
 matters because a session is not a branch: you might carry a stack of three
 through one of them.
 
-Where it runs is the one real choice. `--worktree` gives the session a checkout
-of its own under `$PHALANX_HOME/worktrees/<repo>/<name>`, keyed by the session
-name, so the branch inside it is free to move. Without it the session runs in the
-repo's main checkout.
+Where it runs is the one real choice. `--worktree` gives the session a checkout of
+its own under `$PHALANX_HOME/worktrees/<repo>/<worktree>`, named after the session
+unless you name one. A worktree is not a branch and outlives any branch checked
+out in it, which is why it has a name of its own and why `--branch` is a separate
+flag. Without `--worktree` the session runs in the repo's main checkout.
 
 That second option comes with a hazard worth stating: two sessions in one
 checkout are two agents writing to the same working tree, and a branch switch in
@@ -97,6 +99,11 @@ The category column names which is which: `main`, `worktree`, `external` for a
 tmux session phalanx did not create, `background` and `detached` for agents with
 no pane of their own. A cyan bar in the left gutter marks what phalanx manages.
 Rows saying `background` or `detached` cannot be attached to.
+
+Sessions are acted on by tmux's own session id rather than by name, since two
+repos with the same directory name would otherwise collide. Removing the session
+you are attached to moves the client to the most recently used other one first,
+and is refused outright when there is no other one to move to.
 
 ## Removing one
 
@@ -112,6 +119,10 @@ files included, tagged with the session name and the branch it was on. That tag
 is the whole record: `archived` reads it back out of `git stash list` and
 `restore` recreates the worktree on that branch and pops it. There is no second
 store to drift out of step with the repository.
+
+Prompts and confirmations are fzf, not bare terminal writes, so they carry the
+same frame and keys as the list. Where no terminal is attached they fall back to a
+plain read, which keeps the command line scriptable.
 
 `prune` offers up the worktrees whose session is gone, and only its own, under
 `$PHALANX_HOME` — a worktree you added by hand is not phalanx's to remove.
