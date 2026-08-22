@@ -1,3 +1,6 @@
+# What a session in the repo's own checkout is called when nobody says.
+PHALANX_MAIN_SESSION="${PHALANX_MAIN_SESSION:-main}"
+
 _phalanx_goto() {
   local target="$1" session="${1%%:*}"
   tmux select-window -t "$target" 2>/dev/null || true
@@ -125,12 +128,15 @@ _phalanx_add_worktree() {
 }
 
 # Two sessions in one checkout means two agents writing to the same working tree,
-# and a branch switch in either silently moves the other.
+# and a branch switch in either silently moves the other. The session about to be
+# created is not one of them: reaching for the one already there is the point of
+# picking its repo again.
 _phalanx_confirm_main() {
-  local root="$1" existing
+  local root="$1" self="$2" existing
   existing="$(
     tmux list-sessions -F '#{session_name}	#{@phalanx-location}	#{@phalanx-root}' 2>/dev/null \
-      | awk -F'\t' -v want="$root" '$2 == "main" && $3 == want { print $1 }'
+      | awk -F'\t' -v want="$root" -v self="$self" \
+            '$2 == "main" && $3 == want && $1 != self { print $1 }'
   )"
   [ -n "$existing" ] || return 0
 
@@ -146,7 +152,7 @@ _phalanx_confirm_main() {
 # part of that — it is whatever git has checked out there, and it can change.
 phalanx_session() {
   local name="$1" worktree="$2" branch="$3" layout="$4" cwd="${5:-$PWD}"
-  local root repo dest location strict=""
+  local root repo dest location session strict=""
 
   [ -n "$name" ] || { printf 'phalanx: a session name is required\n' >&2; return 1; }
 
@@ -155,17 +161,17 @@ phalanx_session() {
     return 1
   }
   repo="$(basename "$root")"
+  session="$(_phalanx_session_name "$root" "$name")"
 
   if [ -n "$worktree" ]; then
     dest="$(_phalanx_add_worktree "$root" "$repo" "$name" "$branch")" || return 1
     location=worktree
   else
-    _phalanx_confirm_main "$root" || return 1
+    _phalanx_confirm_main "$root" "$session" || return 1
     dest="$root"
     location=main
   fi
 
   [ -n "$layout" ] || strict=strict
-  _phalanx_create_session "$(_phalanx_session_name "$root" "$name")" \
-    "$dest" "$layout" "$strict" "$location" "$root" "$repo"
+  _phalanx_create_session "$session" "$dest" "$layout" "$strict" "$location" "$root" "$repo"
 }

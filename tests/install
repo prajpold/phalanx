@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Runs the real installer against a throwaway HOME, because the thing it must not
+# do — write over a config file some other tool owns — only shows up on the
+# filesystem, and only weeks later when that tool relinks it.
+set -uo pipefail
+
+PHALANX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+failed=0
+
+W="$(mktemp -d)"
+trap 'rm -rf "$W"' EXIT
+
+check() {
+  local label="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    printf 'ok    %s\n' "$label"
+  else
+    printf 'FAIL  %s\n' "$label"
+    failed=$((failed + 1))
+  fi
+}
+
+# A HOME per case, and a TMUX_TMPDIR of its own so a run never finds — or
+# reloads — the tmux server you are reading this in.
+setup() {
+  H="$W/$1"
+  XDG="$H/.config/tmux/tmux.conf"
+  DOTS="$H/dotfiles/tmux.conf"
+  mkdir -p "$H/.config/tmux" "$H/sock" "$H/dotfiles"
+  printf 'set -g mouse on\n' > "$DOTS"
+}
+
+install_it() {
+  env -u TMUX HOME="$H" XDG_CONFIG_HOME="$H/.config" TMUX_TMPDIR="$H/sock" \
+    PHALANX_REPO="$PHALANX_ROOT" PHALANX_PREFIX="$H/share/phalanx" \
+    PHALANX_BIN_DIR="$H/bin" \
+    bash "$PHALANX_ROOT/install.sh" master --no-path
+}
+
+setup fresh
+install_it >/dev/null 2>&1
+check 'fresh: the block goes in ~/.tmux.conf' grep -q 'phalanx.tmux' "$H/.tmux.conf"
+check 'fresh: no XDG config is invented' test ! -e "$XDG"
+
+install_it >/dev/null 2>&1
+check 'twice: still one block' test "$(grep -c '# phalanx begin' "$H/.tmux.conf")" -eq 1
+
+setup linked
+ln -s "$DOTS" "$XDG"
+install_it >/dev/null 2>&1
+check 'a dotfiles-managed config stays a symlink' test -L "$XDG"
+check 'a dotfiles-managed config is left byte for byte' \
+  test "$(cat "$DOTS")" = 'set -g mouse on'
+check 'the keys are bound outside that repo' grep -q 'phalanx.tmux' "$H/.tmux.conf"
+
+setup stale
+printf 'set -g mouse on\n\n# phalanx begin\nrun-shell /old/phalanx.tmux\n# phalanx end\n' > "$DOTS"
+ln -s "$DOTS" "$XDG"
+install_it >/dev/null 2>&1
+check "an older install's block is dropped" test -z "$(grep phalanx "$DOTS")"
+check 'dropping it keeps the symlink' test -L "$XDG"
+check 'dropping it keeps the rest of the file' test "$(cat "$DOTS")" = 'set -g mouse on'
+check 'and leaves one block, in ~/.tmux.conf' \
+  test "$(grep -c '# phalanx begin' "$H/.tmux.conf")" -eq 1
+
+setup handwritten
+printf 'run-shell ~/repos/phalanx/phalanx.tmux\n' > "$XDG"
+install_it >/dev/null 2>&1
+check 'a run-shell you wrote yourself is not doubled up' test ! -e "$H/.tmux.conf"
+
+setup ownlink
+ln -s "$DOTS" "$H/.tmux.conf"
+install_it >/dev/null 2>&1
+check 'a symlinked ~/.tmux.conf is written through, not over' test -L "$H/.tmux.conf"
+check 'so the block lands in what it points at' grep -q 'phalanx.tmux' "$DOTS"
+check 'and what was there stays' grep -q 'mouse on' "$DOTS"
+
+printf '\n%s\n' "$([ "$failed" -eq 0 ] && echo 'all good' || echo "$failed failed")"
+exit "$failed"

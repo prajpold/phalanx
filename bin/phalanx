@@ -14,7 +14,7 @@ done
 PHALANX_ROOT="$(cd "$(dirname "$self")/.." && pwd)"
 export PHALANX_ROOT
 
-PHALANX_VERSION=0.2.0
+PHALANX_VERSION=0.3.0
 
 . "$PHALANX_ROOT/lib/git.sh"
 . "$PHALANX_ROOT/lib/agents.sh"
@@ -27,7 +27,8 @@ usage() {
 phalanx — tmux session manager for coding agents
 
   phalanx [pick]              agent dashboard (fzf)
-  phalanx new [name]          session in this repo's checkout
+  phalanx new [name]          session in this repo's checkout, called main
+                              unless you name it
       --worktree              run it in a worktree of its own, named after the
                               session; the worktree outlives any branch checked
                               out in it
@@ -42,7 +43,8 @@ phalanx — tmux session manager for coding agents
   phalanx ls [-c] [--tsv]     list sessions, -c narrow, --tsv machine readable
   phalanx --version           print the version
 
-env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos)
+env: PHALANX_HOME (default ~/.phalanx), PHALANX_ROOTS (default ~/repos),
+     PHALANX_MAIN_SESSION (default main)
 EOF
 }
 
@@ -89,9 +91,11 @@ case "$command" in
     done
     if [ -n "$name" ]; then
       phalanx_session "$name" "$worktree" "$branch" "$layout" "$PWD"
-    else
+    elif [ -n "$worktree" ]; then
       phalanx_require_tty || exit 1
-      if [ -n "$worktree" ]; then phalanx_worktree_interactive; else phalanx_main_interactive; fi
+      phalanx_worktree_interactive "$PWD" "$layout"
+    else
+      phalanx_main_interactive "$PWD" "$layout"
     fi
     ;;
   rm)              phalanx_rm "$@" ;;

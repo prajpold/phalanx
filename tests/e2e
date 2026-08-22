@@ -105,6 +105,21 @@ rm -f "$wt/t1/scratch"
 printf 'y\n' | env -u TMUX "$PHALANX_ROOT/bin/phalanx" prune >/dev/null 2>&1
 check 'prune: drops the worktree whose session is gone' test ! -d "$wt/t1"
 
+px new --layout bare >/dev/null 2>&1
+check 'new: no name means the session is called main' tm has-session -t '=repo/main'
+check 'new: it runs in the checkout itself' \
+  test "$(tm show-option -qv -t repo/main @phalanx-location)" = main
+check 'new: no worktree is made for it' test ! -d "$wt/main"
+
+check 'new twice: no warning about the session it is reusing' \
+  test -z "$(px new --layout bare 2>&1 | grep 'Already running')"
+check 'new twice: still one session in the checkout' \
+  test "$(tm list-sessions -F '#{session_name}' | grep -c '^repo/main$')" -eq 1
+
+check 'new <name>: warns about a second session in the same checkout' \
+  test -n "$(px new second --layout bare 2>&1 | grep 'Already running')"
+check 'new <name>: refusing that warning creates nothing' gone repo/second
+
 check 'the main checkout is never touched' test -d "$W/repo/.git"
 
 printf '\n%s\n' "$([ "$failed" -eq 0 ] && echo 'all good' || echo "$failed failed")"

@@ -143,25 +143,22 @@ _phalanx_existing_names() {
   done
 }
 
-# One flow: the location is an option on it, not a second kind of session.
-_phalanx_session_interactive() {
-  local root="$1" location="$2" repo name branch
+# The repo is named in both prompts, because the worktree goes in the repo of
+# whichever row was highlighted and nothing else on screen says which that is.
+_phalanx_worktree_prompt() {
+  local root="$1" layout="${2:-}" repo name branch
 
   repo="$(basename "$root")"
   name="$(_phalanx_existing_names "$repo" \
-    | _phalanx_fzf_pick 'session name > ' 'a name for this session, reused or new · esc goes back')"
+    | _phalanx_fzf_pick "worktree in $repo > " 'a name for this session, reused or new · esc goes back')"
   [ -n "$name" ] || return "$PHALANX_BACK"
 
-  if [ "$location" = worktree ]; then
-    branch="$(
-      git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
-        | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u \
-        | _phalanx_fzf_pick 'branch > ' "empty starts a new branch called $name · esc goes back"
-    )"
-    phalanx_session "$name" worktree "$branch" "" "$root"
-  else
-    phalanx_session "$name" "" "" "" "$root"
-  fi
+  branch="$(
+    git -C "$root" for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin 2>/dev/null \
+      | sed -e 's|^origin/||' | grep -v '^HEAD$' | sort -u \
+      | _phalanx_fzf_pick "branch in $repo > " "empty starts a new branch called $name · esc goes back"
+  )"
+  phalanx_session "$name" worktree "$branch" "$layout" "$root"
 }
 
 phalanx_worktree_interactive() {
@@ -170,16 +167,19 @@ phalanx_worktree_interactive() {
     printf 'phalanx: not a git repository\n' >&2
     return 1
   fi
-  _phalanx_session_interactive "$root" worktree
+  _phalanx_worktree_prompt "$root" "${2:-}"
 }
 
+# Picking the repo is the whole choice: one session per checkout, under the
+# default name, and worktrees hang off it afterwards. Nothing to name here, since
+# there is only ever one of these per repo.
 phalanx_main_interactive() {
   local root
   if ! root="$(_phalanx_repo_root "${1:-$PWD}")"; then
     printf 'phalanx: not a git repository\n' >&2
     return 1
   fi
-  _phalanx_session_interactive "$root" main
+  phalanx_session "$PHALANX_MAIN_SESSION" "" "" "${2:-}" "$root"
 }
 
 phalanx_repo_interactive() {
@@ -187,7 +187,7 @@ phalanx_repo_interactive() {
   path="$(_phalanx_pick_path)"
   [ -n "$path" ] || return "$PHALANX_BACK"
   case "$path" in "~"*) path="$HOME${path#\~}" ;; esac
-  phalanx_worktree_interactive "$path"
+  phalanx_main_interactive "$path" "${1:-}"
 }
 
 phalanx_pick() {
@@ -211,9 +211,9 @@ phalanx_pick() {
         --layout=reverse --no-scrollbar --pointer='▌' --marker='▌' \
         --highlight-line --color="$(_phalanx_colors)" \
         --header="$(_phalanx_columns)" \
-        --footer='enter attach · ctrl-b worktree · ctrl-e main · ctrl-n repo · ctrl-x remove · ctrl-r reload' \
+        --footer='enter attach · ctrl-n repo · ctrl-b worktree of this repo · ctrl-x remove · ctrl-r reload' \
         --footer-border=line \
-        --expect=ctrl-n,ctrl-x,ctrl-b,ctrl-e \
+        --expect=ctrl-n,ctrl-x,ctrl-b \
         --bind="ctrl-r:reload($PHALANX_ROOT/bin/phalanx ls --tsv)"
     )" || return 0
 
@@ -234,16 +234,12 @@ phalanx_pick() {
     pid="$(printf '%s' "$line" | cut -f8)"
 
     case "$key" in
-      ctrl-b|ctrl-e)
+      ctrl-b)
         if ! root="$(_phalanx_repo_root "$cwd")"; then
           _phalanx_notice "phalanx: $cwd is not in a git repository"
           continue
         fi
-        if [ "$key" = ctrl-b ]; then
-          _phalanx_session_interactive "$root" worktree
-        else
-          _phalanx_session_interactive "$root" main
-        fi
+        _phalanx_worktree_prompt "$root"
         status=$?
         [ "$status" -eq "$PHALANX_BACK" ] && continue
         return "$status"

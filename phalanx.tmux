@@ -7,7 +7,9 @@ option() {
   printf '%s\n' "${value:-$2}"
 }
 
-SHELL_NAME="$(option @phalanx-shell bash)"
+# tmux's own login shell by default, because ~/.tmux.conf is read before the XDG
+# config and an @phalanx-shell set in the latter would arrive after these binds.
+SHELL_NAME="$(option @phalanx-shell "$(basename "$(option default-shell bash)")")"
 WIDTH="$(option @phalanx-width 90%)"
 HEIGHT="$(option @phalanx-height 80%)"
 TITLE="#[align=centre,fg=cyan,bold] phalanx $("$PHALANX_DIR/bin/phalanx" --version) "
@@ -25,4 +27,5 @@ bind_popup() {
 
 bind_popup "$(option @phalanx-key g)" pick
 bind_popup "$(option @phalanx-worktree-key b)" 'new --worktree'
+# No prompt on this one: it lands in this pane's repo under the default name.
 bind_popup "$(option @phalanx-main-key e)" new

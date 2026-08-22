@@ -16,14 +16,14 @@ usage() {
 phalanx installer
 
   install.sh [version]        install or update, latest tag by default
-  install.sh v0.2.0           pin a tag
+  install.sh v0.3.0           pin a tag
   install.sh master           track a branch tip
 
   --no-path                   leave your shell config alone
   --no-tmux                   leave your tmux config alone
 
 piped from curl, pass arguments after -s --:
-  curl -fsSL .../install.sh | bash -s -- v0.2.0
+  curl -fsSL .../install.sh | bash -s -- v0.3.0
 
 env: PHALANX_REPO, PHALANX_PREFIX (default ~/.local/share/phalanx),
      PHALANX_BIN_DIR (default ~/.local/bin)
@@ -47,6 +47,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Through a symlink rather than over it. A config linked out of a dotfiles repo
+# belongs to that repo, and swapping the link for a plain file means the next run
+# of whatever manages it moves our file aside and relinks — taking the block with
+# it, silently, weeks later.
+write_through() {
+  local tmp="$1" file="$2"
+  if [ -L "$file" ]; then
+    cat "$tmp" > "$file" && rm -f "$tmp"
+  else
+    mv "$tmp" "$file"
+  fi
+}
+
 # Rewrites its own block rather than appending, so installing twice leaves one
 # entry and a moved PREFIX does not leave the old path behind.
 write_block() {
@@ -65,7 +78,27 @@ write_block() {
   fi
 
   printf '\n%s\n%s\n%s\n' "$MARK_BEGIN" "$body" "$MARK_END" >> "$tmp" || return 1
-  mv "$tmp" "$file"
+  write_through "$tmp" "$file"
+}
+
+# Where an older install put its block is not where this one writes, and two
+# blocks would bind the keys twice. Reports whether there was one to drop.
+drop_block() {
+  local file="$1" tmp
+  [ -f "$file" ] || return 1
+  grep -qF "$MARK_BEGIN" "$file" || return 1
+  tmp="$file.phalanx.$$"
+
+  awk -v b="$MARK_BEGIN" -v e="$MARK_END" '
+    $0 == b { skip = 1 }
+    !skip   { keep[++n] = $0 }
+    $0 == e { skip = 0 }
+    END {
+      while (n > 0 && keep[n] == "") n--
+      for (i = 1; i <= n; i++) print keep[i]
+    }
+  ' "$file" > "$tmp" || return 1
+  write_through "$tmp" "$file"
 }
 
 # A hand-rolled run-shell is not ours to move: appending a second one would bind
@@ -105,14 +138,15 @@ path_body() {
   fi
 }
 
+# tmux reads ~/.tmux.conf and the XDG file both, in that order, so this is one we
+# can own outright. A config that stow, chezmoi or a dotfiles repo manages is left
+# alone, which keeps the popup keys out of a repo that has no business knowing
+# about phalanx.
 tmux_config() {
-  local candidate
-  for candidate in "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf" "$HOME/.tmux.conf"; do
-    if [ -f "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return
-    fi
-  done
+  printf '%s\n' "$HOME/.tmux.conf"
+}
+
+tmux_managed_config() {
   printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf"
 }
 
@@ -169,11 +203,13 @@ fi
 
 if [ -n "$edit_tmux" ]; then
   conf="$(tmux_config)"
-  if has_unmanaged "$conf" 'phalanx\.tmux'; then
-    note "  $conf already runs phalanx itself, leaving it alone"
+  managed="$(tmux_managed_config)"
+  if has_unmanaged "$conf" 'phalanx\.tmux' || has_unmanaged "$managed" 'phalanx\.tmux'; then
+    note '  your tmux config already runs phalanx itself, leaving it alone'
     note "  point that run-shell at $PREFIX/phalanx.tmux to use this copy"
   elif write_block "$conf" "run-shell $PREFIX/phalanx.tmux"; then
     note "  bound the popup keys in $conf"
+    drop_block "$managed" && note "  dropped the block an older install left in $managed"
     if command -v tmux >/dev/null && tmux list-sessions >/dev/null 2>&1; then
       tmux source-file "$conf" >/dev/null 2>&1 \
         && note '  reloaded your running tmux, the keys work now'
